@@ -25,6 +25,7 @@ public sealed class Report
 {
     public string Source { get; set; } = ""; public string Hash { get; set; } = ""; public string Platform { get; set; } = "";
     public Dictionary<string, string> Metadata { get; set; } = new(); public List<Deal> Deals { get; set; } = new();
+    public List<string> InputParameters { get; set; } = new();
     public List<Trade> Trades { get; set; } = new(); public List<string> Warnings { get; set; } = new(); public decimal InitialDeposit { get; set; }
     public List<(DateTime Time, decimal Balance)> Balances { get; set; } = new();
     public string Strategy => Find("Expertenprogramm", "Expert", "Expert Advisor") is { Length: > 0 } s ? s : Path.GetFileNameWithoutExtension(Source);
@@ -55,10 +56,24 @@ public static class Parser
         var rows=(doc.DocumentNode.SelectNodes("//tr")??new HtmlNodeCollection(null)).Select(r=>r.SelectNodes("./td|./th")?.Select(c=>HtmlEntity.DeEntitize(c.InnerText).Trim()).ToArray()??Array.Empty<string>()).ToList();
         var report=new Report{Source=Path.GetFullPath(path),Hash=Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()};
         foreach(var row in rows)for(int i=0;i<row.Length-1;i++)if(row[i].EndsWith(':'))report.Metadata.TryAdd(row[i].TrimEnd(':'),row[i+1]);
+        bool readingInputs=false;
+        foreach(var row in rows)
+        {
+            if(row.Length>1 && new[]{"eingaben","inputs","parameters"}.Contains(Key(row[0])))
+            { readingInputs=true; if(row[1].Contains('='))report.InputParameters.Add(row[1]); continue; }
+            if(!readingInputs)continue;
+            if(row.Length>1 && row[0].Length==0 && row[1].Contains('='))report.InputParameters.Add(row[1]);
+            else readingInputs=false;
+        }
+        if(report.InputParameters.Count>0)
+        {
+            var inputKey=report.Metadata.Keys.FirstOrDefault(k=>new[]{"eingaben","inputs","parameters"}.Contains(Key(k)));
+            if(inputKey is not null)report.Metadata[inputKey]=string.Join(Environment.NewLine,report.InputParameters);
+        }
         var title=HtmlEntity.DeEntitize(doc.DocumentNode.SelectSingleNode("//title")?.InnerText??"");if(title.StartsWith("Strategy Tester:"))report.Metadata.TryAdd("Expert",title[16..].Trim());
         foreach(var row in rows.Where(r=>r.Length>=2&&!r.Any(x=>Date(x,out _))))for(int i=0;i<row.Length-1;i++)if(new[]{"Initial deposit","Total net profit","Profit factor","Modeling quality","Total trades"}.Contains(row[i],StringComparer.OrdinalIgnoreCase))report.Metadata.TryAdd(row[i],row[i+1]);
         // Preserve provenance of headline values. These are not an equity time series.
-        var deposit=report.Find("Ersteinzahlung","Initial Deposit","Anfangseinzahlung","Initial deposit");
+        var deposit=report.Find("Ersteinlage","Ersteinzahlung","Initial Deposit","Anfangseinzahlung","Initial deposit");
         if(deposit.Length>0){var m=Regex.Match(deposit,@"[-+]?\d[\d\s.,]*");if(m.Success)report.InitialDeposit=Number(m.Value);}
         Dictionary<string,int>? header=null; bool mt5=false;
         foreach(var row in rows)
