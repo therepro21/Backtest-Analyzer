@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+publish/
+private-data/
+reports/
+*.rar
+*.zip
+*.pdf
+last-error.txt
+*.user
+*.suo

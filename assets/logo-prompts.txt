@@ -1,0 +1,8 @@
+Erstellt mit dem integrierten Imagegen-Werkzeug. Gewählt: Vorschlag 2.
+Gemeinsamer Prompt: Use case: logo-brand. Create ONE logo proposal for Windows desktop software named exactly "Backtest-Analyzer". White background, flat clean shapes, generous whitespace, centered symbol above exact wordmark "Backtest-Analyzer" in polished readable sans serif. No mockup, no gradients, no 3D, no extra text. This is a concept logo, not a trademark clearance.
+
+Vorschlag 1: A distinctive minimalist vector-friendly brand symbol combining an open circular clock face with three ascending histogram bars, navy and teal. Precise, restrained financial analysis identity.
+Vorschlag 2: A distinctive minimalist vector-friendly brand symbol combining a magnifying glass with a candlestick and small time tick marks, navy and amber. Analytical and trustworthy, no generic stock arrow.
+Vorschlag 3: A distinctive minimalist vector-friendly BA monogram, its negative space forming an hourglass and subtle data bars, indigo and teal. Premium compact geometric identity, recognizable at small sizes.
+
+logo.png ist der unveränderte ausgewählte Rasterentwurf. app.ico ist eine abgeleitete Icon-Datei für den Entwicklungsprototyp. Eine spätere vektorbasierte Reinzeichnung und Markenprüfung stehen aus.
