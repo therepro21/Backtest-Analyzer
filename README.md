@@ -9,6 +9,11 @@ Copyright © 2026 Michael P. Thiess. Dieses Projekt steht in keiner Verbindung z
 
 ## Neu in Beta 1.0
 
+- Senkrechte Beschriftungen direkt an der Y-Achse, deutlich getrennte Wochentagsfarben mit Punktmarkierungen und kleine, kompakte Methodikhinweise in App und PDF.
+- Gesamtbericht, Jahresdetails oder Kombination auswählbar. Samstag/Sonntag einzeln aktivierbar, standardmäßig geschlossen; die automatische Erkennung prüft tatsächliche Handelsbuchungen. Kontobewegungen werden dadurch nicht entfernt.
+- Monatstabellen mit gehandelten Einstiegslots, Währung, ausgeschriebenen Monatsnamen, Jahressummen und Equity-DD-Maximum. Zusätzliche Order-/Trade-Auswertungen nach Stunde, Wochentag und Monat.
+- PDF enthält die unveränderte importierte Datei und vorhandene gleichnamige HTML-/Grafikdateien als Anhänge; dort bleibt die vollständige Order-/Deal-Historie erhalten. Diese Anhänge enthalten private Backtestdaten und werden nicht in diesem Repository veröffentlicht.
+- Deutsch/English umschaltbar; die englische Übersetzung ist noch in Prüfung, insbesondere importierte Originaltexte und einzelne Dialoge. Originalgrafiken in Anhängen bleiben unverändert.
 - Runde proportionale Diagrammachsen mit vollständigen Geldbeträgen, lesbaren Zeitangaben und zweizeiligen Monatsbeschriftungen.
 - Haltezeitdetails bis einer Stunde und darüber, eigene Y-Skalen, Langzeitansicht mit logarithmischer Zeitachse und gleich breiten Stundenintervallen; kumulative Kurve ebenfalls ausdrücklich logarithmisch, mit 50/90/95/99-Prozent-Zeiten.
 - Buchungen derselben Sekunde werden vor der Zyklusabschlussprüfung gemeinsam verarbeitet. Zyklusergebnisse nach Startstunde/-wochentag ersetzen die bisherige Einzeltrade-Zuordnung.

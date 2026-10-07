@@ -20,7 +20,7 @@ public static class YearAnalysis
         var inventory=Inventory(source.Deals.Where(d=>d.Time<start));
         var report=new Report{Source=source.Source,Hash=source.Hash,Platform=source.Platform,Metadata=source.Metadata,
             InputParameters=source.InputParameters,AvailableColumns=source.AvailableColumns,Warnings=source.Warnings,
-            InitialDeposit=opening,AnalysisYear=year,AxisStart=start,AxisEnd=end,OpeningBuyLots=inventory.Buy,OpeningSellLots=inventory.Sell,
+            SaturdayTrading=source.SaturdayTrading,SundayTrading=source.SundayTrading,ReportScope=source.ReportScope,InitialDeposit=opening,AnalysisYear=year,AxisStart=start,AxisEnd=end,OpeningBuyLots=inventory.Buy,OpeningSellLots=inventory.Sell,
             BalanceWindowSeconds=source.BalanceWindowSeconds,
             ExcludeWeekends=source.ExcludeWeekends,
             Series=SeriesAnalysis.ForReport(source),LongSeriesHours=source.LongSeriesHours,SeriesAsPercent=source.SeriesAsPercent,

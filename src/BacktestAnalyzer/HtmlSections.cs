@@ -12,7 +12,8 @@ public sealed class SvgCanvas:ICanvas
     static string C(string color)=>color switch{"#FFFFFF"=>"var(--surface)","#F2F5F9"=>"var(--background)","#173047"=>"var(--ink)","#52677D"=>"var(--muted)","#DCE4ED"=>"var(--line)","#113B65"=>"var(--blue)","#C87500"=>"var(--orange)","#E7EFF7"=>"var(--balancefill)","#FBEBD8"=>"var(--lossfill)","#EDBB77"=>"var(--heatmid)","#DCE8F5"=>"var(--heatlow)",_=>color};
     public void Rect(double x,double y,double width,double height,string fill){if(width>0&&height>0)Content.Append($"<rect x='{N(x)}' y='{N(y)}' width='{N(width)}' height='{N(height)}' fill='{C(fill)}'/>");}
     public void Line(double x1,double y1,double x2,double y2,string color,double width=1)=>Content.Append($"<path d='M{N(x1)} {N(y1)}L{N(x2)} {N(y2)}' fill='none' stroke='{C(color)}' stroke-width='{N(width)}'/>");
-    public void Text(string text,double x,double y,double size,string color,bool bold=false)=>Content.Append($"<text x='{N(x)}' y='{N(y+size)}' font-size='{N(size)}' fill='{C(color)}' font-weight='{(bold?600:400)}'>{E(text)}</text>");
+    public void Text(string text,double x,double y,double size,string color,bool bold=false)=>Content.Append($"<text x='{N(x)}' y='{N(y+size)}' font-size='{N(size)}' fill='{C(color)}' font-weight='{(bold?600:400)}'>{E(Localization.T(text))}</text>");
+    public void VerticalText(string text,double x,double y,double size,string color)=>Content.Append($"<text x='{N(x)}' y='{N(y)}' transform='rotate(-90 {N(x)} {N(y)})' text-anchor='middle' dominant-baseline='middle' font-size='{N(size)}' fill='{C(color)}'>{E(Localization.T(text))}</text>");
     public void Circle(double x,double y,double radius,string color,bool hollow=false)=>Content.Append($"<circle cx='{N(x)}' cy='{N(y)}' r='{N(radius)}' fill='{(hollow?"none":C(color))}' stroke='{C(color)}'/>");
 }
 public static class HtmlSections
@@ -20,7 +21,7 @@ public static class HtmlSections
     public static string Build(Report source)
     {
         var html=new StringBuilder();string E(string text)=>WebUtility.HtmlEncode(text);
-        foreach(var report in YearAnalysis.Scopes(source))
+        foreach(var report in ReportOptions.Scopes(source))
         {
             var stats=new Stats(report.Closed,source.ExcludeWeekends);var calendar=new Stats(report.Closed);var weekdays=new Stats(report.Closed,true);
             html.Append("<section class='panel annual'><h2>"+(report.AnalysisYear.HasValue?"Jahresauswertung "+report.AnalysisYear:"Gesamtauswertung")+"</h2><p>Ergebnis nach Deal-Buchungsdatum; Haltezeit und Entry-Lots nach Schlussjahr. Jahreswechsel-Trades behalten ihre gesamte Haltedauer.</p><div class='details'>");
@@ -31,7 +32,7 @@ public static class HtmlSections
             var dd=AccountCurves.EquityDrawdowns(report);if(dd.Count>0){var percent=dd.MaxBy(p=>p.Percent);var money=dd.MaxBy(p=>p.Money);Metric("Max. Equity-DD (%)",$"{percent.Percent:N2}% / {percent.Money:N2} · {percent.Time:dd.MM.yyyy HH:mm:ss}");Metric("Max. Equity-DD (Geld)",$"{money.Money:N2} / {money.Percent:N2}% · {money.Time:dd.MM.yyyy HH:mm:ss}");Metric("Max. gespeicherte Kontobelastung",report.EquityPoints.Max(p=>p.DepositLoad).ToString("N2")+"%");}
             var adjusted=SeriesAnalysis.Adjusted(report);if(adjusted.Time.HasValue){Metric("Um letzten Zyklus bereinigt",adjusted.Profit.ToString("N2"));Metric("Gesamtgewinn am",adjusted.Time.Value.ToString("dd.MM.yyyy HH:mm:ss"));Metric("Testende-Zyklus separat",adjusted.Excluded.ToString("N2"));}
             html.Append("</div><div class='chartgrid'>");
-            foreach(var kind in new[]{ChartKind.Balance,ChartKind.Equity,ChartKind.Histogram,ChartKind.Ecdf,ChartKind.Boxplot,ChartKind.Scatter,ChartKind.Monthly,ChartKind.Hourly,ChartKind.Weekday,ChartKind.SeriesHeatmap,ChartKind.SeriesCurve})
+            foreach(var kind in new[]{ChartKind.Balance,ChartKind.Equity,ChartKind.Histogram,ChartKind.Ecdf,ChartKind.Boxplot,ChartKind.Scatter,ChartKind.Monthly,ChartKind.Hourly,ChartKind.Weekday,ChartKind.SeriesHeatmap,ChartKind.SeriesCurve,ChartKind.EntryHour,ChartKind.EntryWeekday,ChartKind.EntryMonth,ChartKind.ResultHour,ChartKind.ResultWeekday,ChartKind.ResultMonth})
             {
                 if(kind==ChartKind.Equity&&report.EquityPoints.Count==0)continue;
                 var canvas=new SvgCanvas();ChartPainter.Draw(canvas,kind,report,stats.Trades,new Palette(false),0,0,760,350);html.Append("<svg role='img' viewBox='0 0 760 350' xmlns='http://www.w3.org/2000/svg'>"+canvas.Content+"</svg>");
