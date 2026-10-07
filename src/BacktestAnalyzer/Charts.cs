@@ -12,11 +12,13 @@ public record Palette(bool Dark)
 }
 public interface ICanvas
 {
+    double Measure(string text,double size,bool bold=false)=>text.Length*size*.5;
+    void RightText(string text,double right,double y,double size,string color,bool bold=false)=>Text(text,right-Measure(text,size,bold),y,size,color,bold);
     void Hover(double x,double y,double w,double h,string text){}
     void Rect(double x,double y,double w,double h,string fill);void Line(double x1,double y1,double x2,double y2,string color,double width=1);
     void Text(string text,double x,double y,double size,string color,bool bold=false);void VerticalText(string text,double x,double y,double size,string color);void Circle(double x,double y,double radius,string color,bool hollow=false);
 }
-public enum ChartKind { Histogram, Ecdf, Scatter, Balance, Equity, Drawdown, Monthly, Hourly, Weekday, Boxplot,SeriesHeatmap,SeriesCurve,EntryHour,EntryWeekday,EntryMonth,ResultHour,ResultWeekday,ResultMonth }
+public enum ChartKind { Histogram, Ecdf, Scatter, Balance, Equity, Drawdown, Monthly, Hourly, Weekday, Boxplot,SeriesHeatmap,SeriesCurve,EntryWins,EntryLosses,EntryLossRate,EntryHour,EntryWeekday,EntryMonth,ResultHour,ResultWeekday,ResultMonth }
 public static class ChartPainter
 {
     public static string Compact(double n)=>Math.Abs(n)>=1e9?(n/1e9).ToString("0.##",CultureInfo.InvariantCulture)+"B":Math.Abs(n)>=1e6?(n/1e6).ToString("0.##",CultureInfo.InvariantCulture)+"M":Math.Abs(n)>=1000?(n/1000).ToString("0.##",CultureInfo.InvariantCulture)+"K":n.ToString("0.##",CultureInfo.InvariantCulture);
@@ -25,6 +27,7 @@ public static class ChartPainter
         if(kind is ChartKind.Hourly or ChartKind.Weekday){OriginalPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.Hourly?ChartKind.ResultHour:ChartKind.ResultWeekday);return;}
         if(kind is ChartKind.EntryHour or ChartKind.EntryWeekday or ChartKind.EntryMonth or ChartKind.ResultHour or ChartKind.ResultWeekday or ChartKind.ResultMonth){OriginalPainter.Draw(c,report,p,x,y,width,height,kind);return;}
         if(kind is ChartKind.Histogram or ChartKind.Ecdf or ChartKind.Boxplot){HoldingPainter.Draw(c,kind,report,trades,p,x,y,width,height);return;}
+        if(kind is ChartKind.EntryWins or ChartKind.EntryLosses or ChartKind.EntryLossRate){EntryPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.EntryWins?0:kind==ChartKind.EntryLosses?1:2);return;}
         if(kind is ChartKind.SeriesHeatmap or ChartKind.SeriesCurve){SeriesPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.SeriesCurve);return;}
         if(kind is ChartKind.Balance or ChartKind.Equity){AccountPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.Equity);return;}
         c.Rect(x,y,width,height,p.Surface);var s=new Stats(trades,report.ExcludeWeekends,report.SaturdayTrading,report.SundayTrading,report.NightPauseMinutes,report.NightPauseStartMinute);
@@ -33,7 +36,7 @@ public static class ChartPainter
         if(kind is ChartKind.Histogram or ChartKind.Ecdf or ChartKind.Boxplot or ChartKind.Scatter)c.Text(report.ExcludeWeekends?"Bereinigte Handelsdauer":"Kalender-Haltezeit inklusive Wochenenden",x+12,y+height-13,7,p.Muted);
         double l=x+82,r=x+width-20,t=y+56,b=y+height-69,w=r-l,h=b-t;
         if(s.Count==0&&kind is not (ChartKind.Balance or ChartKind.Drawdown)){c.Text("Keine abgeschlossenen Trades für diese Auswahl.",x+15,y+60,11,p.Muted);return;}
-        void Axes(string yl,string xl,double min,double max){c.VerticalText(yl,x+13,(t+b)/2,7,p.Muted);var axis=ChartAxis.Nice(min,max);foreach(var value in axis.Ticks){double yy=b-h*(value-min)/(max-min);if(yy<t-1||yy>b+1)continue;c.Line(l,yy,r,yy,p.Line);c.Text(ChartAxis.Number(value),x+28,yy-4,8,p.Muted);}c.Line(l,b,r,b,p.Line);c.Text(xl,l,b+45,7,p.Muted);}
+        void Axes(string yl,string xl,double min,double max){c.VerticalText(yl,x+13,(t+b)/2,7,p.Muted);var axis=ChartAxis.Nice(min,max);foreach(var value in axis.Ticks){double yy=b-h*(value-min)/(max-min);if(yy<t-1||yy>b+1)continue;c.Line(l,yy,r,yy,p.Line,.45);c.RightText(ChartAxis.Number(value)+(yl.Contains("Netto")||yl.Contains("Kontowährung")?" "+DisplayFormat.Currency(report):""),l-5,yy-4,8,p.Muted);}c.Line(l,b,r,b,p.Line);c.Text(xl,l,b+45,7,p.Muted);}
         void Legend(){c.Rect(r-178,y+31,8,8,p.Positive);c.Text("Gewinn (+)",r-165,y+29,9,p.Muted);c.Rect(r-83,y+31,8,8,p.Negative);c.Text("Verlust (-)",r-70,y+29,9,p.Muted);}
         if(kind==ChartKind.Histogram)
         {
@@ -41,7 +44,7 @@ public static class ChartPainter
             var wins=new int[count];var losses=new int[count];var zeros=new int[count];foreach(var a in s.Trades){int i=(int)(Stats.HoldingSeconds(a,report.ExcludeWeekends,report.SaturdayTrading,report.SundayTrading,report.NightPauseMinutes,report.NightPauseStartMinute)/bin);if(i>=count)continue;if(a.Net>0)wins[i]++;else if(a.Net<0)losses[i]++;else zeros[i]++;}
             double factor=report.HoldingAsPercent?100.0/s.Count:1,max=Math.Max(.01,Enumerable.Range(0,count).Max(i=>Math.Max(wins[i],Math.Max(losses[i],zeros[i])))*factor);max*=1.1;
             Axes(report.HoldingAsPercent?"% aller ausgewählten Entry-Lots":"Anzahl Entry-Lots","Haltedauer (h) · gleiche Intervalle: "+report.HoldingBinMinutes+" min",0,max);Legend();
-            void Curve(int[] values,string color){for(int i=1;i<count;i++)c.Line(l+w*(i-.5)/count,b-h*values[i-1]*factor/max,l+w*(i+.5)/count,b-h*values[i]*factor/max,color,1.5);if(count==1)c.Circle(l+w/2,b-h*values[0]*factor/max,3,color);}
+            void Curve(int[] values,string color){for(int i=1;i<count;i++)c.Line(l+w*(i-.5)/count,b-h*values[i-1]*factor/max,l+w*(i+.5)/count,b-h*values[i]*factor/max,color,.85);if(count==1)c.Circle(l+w/2,b-h*values[0]*factor/max,3,color);}
             Curve(wins,p.Positive);Curve(losses,p.Negative);if(zeros.Any(n=>n>0))Curve(zeros,p.Muted);
             for(int i=0;i<=4;i++)c.Text((limit/3600*i/4).ToString("0.##"),l+w*i/4-8,b+7,9,p.Muted);return;
         }
@@ -73,7 +76,7 @@ public static class ChartPainter
             l=x+100;w=r-l;double split=t+h*.66;double topH=split-t-15,ddTop=split+12,ddH=b-ddTop;
             double min=Math.Floor(full.Min(a=>a.Balance)/10000)*10000,max=Math.Ceiling(full.Max(a=>a.Balance)/10000)*10000;if(max<=min)max=min+1;
             string currency=report.Find("Währung","Currency");c.Text("Balance / Drawdown (%)",x+12,y+31,9,p.Muted);
-            for(int i=0;i<=4;i++){double yy=t+topH-topH*i/4;c.Line(l,yy,r,yy,p.Line);c.Text((min+(max-min)*i/4).ToString("N0")+" "+currency,x+7,yy-5,9,p.Muted);}
+            for(int i=0;i<=4;i++){double yy=t+topH-topH*i/4;c.Line(l,yy,r,yy,p.Line,.45);c.Text((min+(max-min)*i/4).ToString("N0")+" "+currency,x+7,yy-5,9,p.Muted);}
             double Y(double balance)=>t+topH-topH*(balance-min)/(max-min);
             double ddScale=Math.Max(10,Math.Ceiling(-full.Min(a=>a.Percent)/10)*10);
             for(int i=1;i<points.Length;i++)
@@ -82,7 +85,7 @@ public static class ChartPainter
                 for(double xx=start;xx<=end;xx+=1){double f=(xx-start)/span,bal=points[i-1].Balance+(points[i].Balance-points[i-1].Balance)*f,dd=points[i-1].Percent+(points[i].Percent-points[i-1].Percent)*f;c.Line(xx,Y(bal),xx,t+topH,p.Dark?"#20354F":"#E7EFF7",1.2);c.Line(xx,ddTop,xx,ddTop-ddH*dd/ddScale,p.Dark?"#493724":"#FBEBD8",1.2);}
             }
             for(int i=1;i<points.Length;i++){c.Line(X(points[i-1].Time),Y(points[i-1].Balance),X(points[i].Time),Y(points[i].Balance),p.Positive,1.4);c.Line(X(points[i-1].Time),ddTop-ddH*points[i-1].Percent/ddScale,X(points[i].Time),ddTop-ddH*points[i].Percent/ddScale,p.Negative,1.2);}
-            for(int i=0;i<=3;i++){double yy=ddTop+ddH*i/3;c.Line(l,yy,r,yy,p.Line);c.Text((-ddScale*i/3).ToString("0.0")+"%",x+40,yy-5,9,p.Muted);}
+            for(int i=0;i<=3;i++){double yy=ddTop+ddH*i/3;c.Line(l,yy,r,yy,p.Line,.45);c.Text((-ddScale*i/3).ToString("0.0")+"%",x+40,yy-5,9,p.Muted);}
             if(report.AnalysisYear.HasValue){for(int i=0;i<12;i++){var month=axisStart.AddMonths(i);double xx=X(month);c.Line(xx,t,xx,b,p.Line);c.Text(month.ToString("MMM"),xx+2,b+8,8,p.Muted);}}
             else {var month=new DateTime(axisStart.Year,axisStart.Month,1).AddMonths(1);int months=(full[^1].Time.Year-axisStart.Year)*12+full[^1].Time.Month-axisStart.Month+1;for(int i=0;month<=full[^1].Time;month=month.AddMonths(1),i++){double xx=X(month);c.Line(xx,t,xx,b,p.Line);if(i%Math.Max(1,(int)Math.Ceiling(months/8d))==0)c.Text(month.ToString("MM.yy"),xx-12,b+8,8,p.Muted);}}
             return;
@@ -98,6 +101,7 @@ public static class ChartPainter
 public sealed class WpfCanvas(DrawingContext context,List<(Rect Box,string Text)>? hits=null):ICanvas
 {
     public void Hover(double x,double y,double w,double h,string text){hits?.Add((new Rect(x,y,Math.Max(0,w),Math.Max(0,h)),Localization.T(text)));}
+    public double Measure(string text,double size,bool bold=false)=>new FormattedText(Localization.T(text),Localization.Culture,FlowDirection.LeftToRight,new Typeface(new FontFamily("Segoe UI"),FontStyles.Normal,bold?FontWeights.SemiBold:FontWeights.Normal,FontStretches.Normal),size,Brush("#000000"),1).Width;
     static Brush Brush(string hex)=>new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
     public void Rect(double x,double y,double w,double h,string fill){if(w>0&&h>0)context.DrawRectangle(Brush(fill),null,new Rect(x,y,w,h));}
     public void Line(double x1,double y1,double x2,double y2,string color,double width=1)=>context.DrawLine(new Pen(Brush(color),width*.65),new Point(x1,y1),new Point(x2,y2));

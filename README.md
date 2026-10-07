@@ -9,6 +9,7 @@ Copyright © 2026 Michael P. Thiess. Dieses Projekt steht in keiner Verbindung z
 
 ## Neu in Beta 1.0
 
+- [Aktuelle Überarbeitung: feste Kerzenintervalle, Top-5-DD, Einzelorder und Unicode-Tooltips](docs/REPORT-UPDATE-2026-10-07.md).
 - [Marktdaten, exakte Custom-Symbole und H1/H4/T1-Vergleich](docs/MARKET-DATA.md): direkter MT5-Abruf, manuelle externe Symbolzuordnung, Zeitraumansicht in der App und Vergleichsseiten im PDF. Einklappbare Navigation, Vektorlogo, Symbol für Light/Dark und DE/EN-Auswahl.
 - Neueste Überarbeitung: [App, PDF-Tooltips, Handelsdauer und Vergleich](docs/BETA-1.0-UPDATE.md). Native PDF-Tooltips ohne Mouseover-JavaScript; Kapitel/Lesezeichen, Dreiergruppen, rechtsbündige Geldbeträge mit Währungssymbol und feinere Kurvenlinien. Analysen als `.bta` speichern und zwei Backtests vergleichen.
 - Standardmäßig Wochenendtage ausgeschlossen und eine einstellbare pauschale Nachtpause abgezogen. Das ist eine Annahme, keine automatisch erkannte historische Marktschließung.

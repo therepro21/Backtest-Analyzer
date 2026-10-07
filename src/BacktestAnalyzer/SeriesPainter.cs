@@ -4,7 +4,7 @@ public static class SeriesPainter
  public static void Draw(ICanvas c,Report report,Palette p,double x,double y,double width,double height,bool curves=false)
  {
   var completed=SeriesAnalysis.Selected(report);var all=SeriesAnalysis.Regular(report);var longs=all.Where(s=>ReportOptions.CycleSeconds(report,s)>report.LongSeriesHours*3600).ToList();
-  c.Rect(x,y,width,height,p.Surface);c.Text((curves?"Tageskurven":"Startzeit-Heatmap")+" · Zyklen über "+report.LongSeriesHours+" Handelsstunden",x+12,y+10,11,p.Ink,true);
+  c.Rect(x,y,width,height,p.Surface);c.Text((curves?"Tageskurven":"Startzeit-Heatmap")+(report.StrategyMode=="single"?" · Trades über ":" · Zyklen über ")+report.LongSeriesHours+" Handelsstunden",x+12,y+10,11,p.Ink,true);
   c.Text($"{all.Count:N0} reguläre Zyklen · {longs.Count:N0} über {report.LongSeriesHours} h · "+(all.Count>0?$"{100d*longs.Count/all.Count:N1} %":"—"),x+12,y+30,8,p.Ink,true);
   var cutoff=report.AxisEnd??report.Deals.Max(d=>d.Time).AddTicks(1);int openCycles=SeriesAnalysis.ForReport(report).Count(c=>c.Start<cutoff&&(!c.End.HasValue||c.End.Value>=cutoff));
   c.Text($"{completed.Count:N0} abgeschlossen · {completed.Count-all.Count} Testende · {openCycles} offen am Abschnittsende · Broker-Zeit",x+12,y+45,7,p.Muted);
@@ -25,9 +25,10 @@ public static class SeriesPainter
    c.Text("Blau: 0 lange · Orange: zunehmend viele / hoher Anteil · —: keine Starts",x+12,y+height-16,6.5,p.Muted);
   }else{
    var axis=ChartAxis.Nice(0,maximum);string[] colors=p.Dark?new[]{"#67B7FF","#FFAC3D","#66D7A9","#CDA0FF","#FF7DA7","#FFE16A","#71DCE8"}:new[]{"#145DA0","#D46B00","#16804A","#8245B5","#BF2362","#9A7B00","#00828F"};
-   c.VerticalText(report.SeriesAsPercent?"Anteil (%)":"Anzahl Zyklen",x+6,top+ph/2,7,p.Muted);foreach(var tick in axis.Ticks){double yy=top+ph-ph*tick/axis.High;c.Line(left,yy,left+pw,yy,p.Line);c.Text(ChartAxis.Number(tick)+(report.SeriesAsPercent?" %":""),x+20,yy-4,7,p.Muted);}
-   for(int row=0;row<enabled.Length;row++){int d=enabled[row];for(int h=1;h<24;h++)c.Line(left+pw*(h-1)/23,top+ph-ph*Value(d,h-1)/axis.High,left+pw*h/23,top+ph-ph*Value(d,h)/axis.High,colors[d],1.3);for(int mark=0;mark<24;mark+=3)c.Circle(left+pw*mark/23,top+ph-ph*Value(d,mark)/axis.High,2.2,colors[d],d%2==1);c.Text(days[d],left+row*pw/enabled.Length,y+height-16,8,colors[d],true);}
-   foreach(int h in new[]{0,3,6,9,12,15,18,23}){double xx=left+pw*h/23;c.Line(xx,top,xx,top+ph,p.Line,.5);c.Text(DisplayFormat.Hour(h),xx-(h==23?25:0),top+ph+7,7,p.Muted);}for(int h=0;h<24;h++){string detail=DisplayFormat.Hour(h)+"\n"+string.Join("\n",enabled.Select(d=>$"{days[d]}: {counts[d,h]} lange / {totals[d,h]} Starts · "+(totals[d,h]>0?$"{100d*counts[d,h]/totals[d,h]:N1} %":"—")));c.Hover(left+pw*Math.Max(0,h-.5)/23,top,pw/23,ph,detail);}
+   c.VerticalText(report.SeriesAsPercent?"Anteil (%)":"Anzahl Zyklen",x+6,top+ph/2,7,p.Muted);foreach(var tick in axis.Ticks){double yy=top+ph-ph*tick/axis.High;c.Line(left,yy,left+pw,yy,p.Line,.4);c.RightText(ChartAxis.Number(tick)+(report.SeriesAsPercent?" %":""),left-5,yy-4,7,p.Muted);}
+   foreach(int h in new[]{0,3,6,9,12,15,18,23}){double xx=left+pw*h/23;c.Line(xx,top,xx,top+ph,p.Line,.5);c.Text(DisplayFormat.Hour(h),xx-(h==23?25:0),top+ph+7,7,p.Muted);}
+   for(int row=0;row<enabled.Length;row++){int d=enabled[row];for(int h=1;h<24;h++)c.Line(left+pw*(h-1)/23,top+ph-ph*Value(d,h-1)/axis.High,left+pw*h/23,top+ph-ph*Value(d,h)/axis.High,colors[d],.85);for(int mark=0;mark<24;mark+=3)c.Circle(left+pw*mark/23,top+ph-ph*Value(d,mark)/axis.High,2.2,colors[d],d%2==1);c.Text(days[d],left+row*pw/enabled.Length,y+height-16,8,colors[d],true);}
+for(int h=0;h<24;h++){string detail=DisplayFormat.Hour(h)+"\n"+string.Join("\n",enabled.Select(d=>$"{days[d]}: {counts[d,h]} lange / {totals[d,h]} Starts · "+(totals[d,h]>0?$"{100d*counts[d,h]/totals[d,h]:N1} %":"—")));c.Hover(left+pw*Math.Max(0,h-.5)/23,top,pw/23,ph,detail);}
   }
  }
 }

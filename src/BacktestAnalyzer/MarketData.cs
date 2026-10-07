@@ -27,15 +27,21 @@ public static class MarketData
     }
     sealed class Cached {public List<MarketBar>? Input;public string Key="";public List<MarketBar> Bars=new();}
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Report,Cached> Aggregates=new();
+    public static string PriceCurrency(Report r)=>r.MarketSymbol.Contains("USD")?"$":r.MarketSymbol.EndsWith("JPY")?"¥":r.MarketSymbol.EndsWith("EUR")?"€":r.MarketSymbol.Length>=3?r.MarketSymbol[^3..]:"Preis";
+    public static DateTime BlockEnd(DateTime start,string interval)=>interval=="MN1"?start.AddMonths(1):start.AddHours(Hours(interval));
+    public static int Hours(string interval)=>interval.StartsWith("H")&&int.TryParse(interval[1..],out var h)?h:interval.StartsWith("D")&&int.TryParse(interval[1..],out var d)?d*24:interval=="W1"?168:interval=="MN1"?744:1;
+    public static string Interval(Report r,DateTime start,DateTime end,double width){if(r.MarketInterval!="Auto")return r.MarketInterval;double hours=(end-start).TotalHours;return new[]{"H1","H2","H3","H4","H6","H8","H12","D1","D2","D4","W1","MN1"}.FirstOrDefault(t=>hours/Hours(t)<=Math.Max(20,width/1.4))??"MN1";}
+    public static List<MarketBar> Aggregate(Report r,string interval){var previous=r.MarketInterval;try{r.MarketInterval=interval;return Aggregate(r);}finally{r.MarketInterval=previous;}}
     public static List<MarketBar> Aggregate(Report r)
     {
-        var cache=Aggregates.GetOrCreateValue(r);var key=$"{r.MarketInterval}/{r.BrokerTimeRule}/{r.BrokerUtcOffsetMinutes}/{r.BrokerWinterOffsetMinutes}/{r.MarketBars.Count}/{r.MarketSourceTimeIsBroker}";
+        var cache=Aggregates.GetOrCreateValue(r);var key=$"{r.MarketInterval}/{r.BrokerTimeRule}/{r.BrokerUtcOffsetMinutes}/{r.BrokerWinterOffsetMinutes}/{r.MarketBars.Count}/{r.MarketSourceTimeIsBroker}/{r.AxisStart?.Ticks}/{r.AxisEnd?.Ticks}/{r.Balances.FirstOrDefault().Time.Ticks}/{r.Balances.LastOrDefault().Time.Ticks}";
         if(cache.Input!=r.MarketBars||cache.Key!=key){cache.Input=r.MarketBars;cache.Key=key;cache.Bars=AggregateCore(r);}return cache.Bars;
     }
     static List<MarketBar> AggregateCore(Report r)
     {
-        int hours=r.MarketInterval=="H4"?4:r.MarketInterval=="D1"?24:1;
-        return r.MarketBars.OrderBy(b=>b.Utc).GroupBy(b=>{var t=BrokerTime(r,b.Utc);return t.Date.AddHours(t.Hour/hours*hours);}).Select(g=>new MarketBar(g.Key,g.First().Open,g.Max(b=>b.High),g.Min(b=>b.Low),g.Last().Close)).ToList();
+        int hours=Hours(r.MarketInterval);var anchor=r.MarketBars.Count>0?new DateTime(BrokerTime(r,r.MarketBars[0].Utc).Year,1,1):new DateTime(1970,1,1);
+        DateTime? start=r.AxisStart??(r.Balances.Count>0?r.Balances.Min(p=>p.Time):null),end=r.AxisEnd??(r.Balances.Count>0?r.Balances.Max(p=>p.Time):null);
+        return r.MarketBars.Where(b=>(!start.HasValue||BrokerTime(r,b.Utc)>=start)&&(!end.HasValue||BrokerTime(r,b.Utc).AddHours(1)<=end)).OrderBy(b=>b.Utc).GroupBy(b=>{var t=BrokerTime(r,b.Utc);return r.MarketInterval=="MN1"?new DateTime(t.Year,t.Month,1):r.MarketInterval=="W1"?t.Date.AddDays(-((int)t.DayOfWeek+6)%7):hours<24?t.Date.AddHours(t.Hour/hours*hours):anchor.AddDays(Math.Floor((t.Date-anchor).TotalDays/(hours/24))*(hours/24));}).Select(g=>new MarketBar(g.Key,g.First().Open,g.Max(b=>b.High),g.Min(b=>b.Low),g.Last().Close)).ToList();
     }
     public static async Task Load(Report r,IProgress<string>? progress=null,CancellationToken token=default)
     {

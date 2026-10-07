@@ -1,20 +1,21 @@
 namespace BacktestAnalyzer;
 public static class MarketPainter
 {
-    static string Unit(Report r)=>r.MarketSymbol.Contains("USD")?"$":r.MarketSymbol.EndsWith("JPY")?"¥":r.MarketSymbol.EndsWith("EUR")?"€":r.MarketSymbol.Length>=3?r.MarketSymbol[^3..]:"Preis";
-    public static List<MarketBar> Visible(Report r,DateTime start,DateTime end)=>r.MarketEnabled&&r.MarketLoadedSymbol==r.MarketSymbol?MarketData.Aggregate(r).Where(b=>b.Utc>=start&&b.Utc<=end).ToList():new();
-    public static void Draw(ICanvas c,Report r,Palette p,DateTime start,DateTime end,double left,double right,double top,double bottom)
+    public static string Unit(Report r)=>r.MarketSymbol.Contains("USD")?"$":r.MarketSymbol.EndsWith("JPY")?"¥":r.MarketSymbol.EndsWith("EUR")?"€":r.MarketSymbol.Length>=3?r.MarketSymbol[^3..]:"Preis";
+    public static List<MarketBar> Visible(Report r,DateTime start,DateTime end)=>r.MarketEnabled&&r.MarketLoadedSymbol==r.MarketSymbol?MarketData.Aggregate(r,r.MarketInterval=="Auto"?"H1":r.MarketInterval).Where(b=>b.Utc>=start&&b.Utc<=end).ToList():new();
+    public static void Draw(ICanvas c,Report r,Palette p,DateTime start,DateTime end,double left,double right,double top,double bottom,bool hoverOnly=false)
     {
-        var all=Visible(r,start,end);if(all.Count==0)return;var lo=all.Min(b=>b.Low);var hi=all.Max(b=>b.High);decimal pad=Math.Max(.001m,(hi-lo)*.08m);lo-=pad;hi+=pad;
+        if(hoverOnly&&c is PdfCanvas)return; // PDFs retain bounded account time-window tooltips; the app can expose every candle dynamically.
+        string interval=MarketData.Interval(r,start,end,right-left);var all=r.MarketEnabled&&r.MarketLoadedSymbol==r.MarketSymbol?MarketData.Aggregate(r,interval).Where(b=>b.Utc>=start.AddHours(-MarketData.Hours(interval))&&b.Utc<=end).ToList():new();if(all.Count==0)return;var lo=all.Min(b=>b.Low);var hi=all.Max(b=>b.High);decimal pad=Math.Max(.001m,(hi-lo)*.08m);lo-=pad;hi+=pad;
         double span=Math.Max(1,(end-start).TotalSeconds);double X(DateTime t)=>left+(right-left)*(t-start).TotalSeconds/span;double Y(decimal value)=>bottom-(double)((value-lo)/(hi-lo))*(bottom-top);
-        // Dense views retain OHLC envelopes per physical display column, without changing source bars.
-        int max=Math.Max(20,(int)((right-left)/2));var groups=all.GroupBy(b=>(int)((b.Utc-start).TotalSeconds/span*max)).ToList();
-        foreach(var group in groups){var first=group.First();var last=group.Last();double xx=X(first.Utc),w=Math.Max(.6,Math.Min(8,(right-left)/max*.55));string col=last.Close>=first.Open?(p.Dark?"#4C897E":"#B7D4CA"):(p.Dark?"#986D67":"#E3BBB4");c.Line(xx,Y(group.Max(b=>b.High)),xx,Y(group.Min(b=>b.Low)),col,.8);c.Rect(xx-w/2,Math.Min(Y(first.Open),Y(last.Close)),w,Math.Max(.6,Math.Abs(Y(first.Open)-Y(last.Close))),col);}
-        for(int i=0;i<=3;i++){decimal value=lo+(hi-lo)*i/3;c.Text(value.ToString(hi>100?"N0":"N3")+" "+Unit(r),right+5,Y(value)-4,6,p.Muted);}c.VerticalText(r.MarketSymbol+" ("+(r.MarketSymbol.EndsWith("USD")?"$":"Preis")+")",right+43,(top+bottom)/2,6,p.Muted);
+        // Fixed broker-time candles remain independent of output resolution.
+        int max=Math.Max(1,(int)Math.Ceiling(span/3600/MarketData.Hours(interval)));var groups=all.Select(b=>new[]{b});
+        foreach(var group in groups){var first=group.First();var last=group.Last();double xx=X(first.Utc+( (MarketData.BlockEnd(first.Utc,interval)>end?end:MarketData.BlockEnd(first.Utc,interval))-first.Utc)/2);xx=Math.Clamp(xx,left,right);double w=Math.Max(.6,Math.Min(8,(right-left)/max*.55));string col=last.Close>=first.Open?(p.Dark?"#4C897E":"#B7D4CA"):(p.Dark?"#986D67":"#E3BBB4");if(!hoverOnly){c.Line(xx,Y(group.Max(b=>b.High)),xx,Y(group.Min(b=>b.Low)),col,.8);c.Rect(xx-w/2,Math.Min(Y(first.Open),Y(last.Close)),w,Math.Max(.6,Math.Abs(Y(first.Open)-Y(last.Close))),col);}var blockEnd=MarketData.BlockEnd(first.Utc,interval);var source=r.MarketBars.Where(b=>{var time=MarketData.BrokerTime(r,b.Utc);return time>=first.Utc&&time<blockEnd&&time>=start&&time.AddHours(1)<=end;}).ToList();bool partial=first.Utc<start||blockEnd>end||source.Count>0&&MarketData.BrokerTime(r,source[^1].Utc).AddHours(1)<blockEnd&&blockEnd>MarketData.BrokerTime(r,r.MarketBars[^1].Utc).AddHours(1);if(hoverOnly)c.Hover(Math.Max(left,X(first.Utc)),top,Math.Max(.1,Math.Min(right,X(blockEnd))-Math.Max(left,X(first.Utc))),bottom-top,"Quelle: H1 · Anzeige: "+interval+"\n"+DisplayFormat.Time(first.Utc)+" → "+DisplayFormat.Time(blockEnd)+(partial?" · unvollständiger Randblock":"")+"\n"+source.Count+" H1-Kerzen\nO / H / L / C: "+string.Join(" / ",new[]{first.Open,first.High,first.Low,first.Close}.Select(v=>v.ToString("N3",System.Globalization.CultureInfo.GetCultureInfo(Localization.English?"en-US":"de-DE"))+" "+Unit(r))));}
+        if(!hoverOnly){for(int i=0;i<=3;i++){decimal value=lo+(hi-lo)*i/3;c.RightText(value.ToString(hi>100?"N0":"N3")+" "+Unit(r),right+49,Y(value)-4,6,p.Muted);}c.VerticalText(r.MarketSymbol+" ("+Unit(r)+")",right+58,(top+bottom)/2,6,p.Muted);}
     }
-    public static string Details(Report r,DateTime start,DateTime end)
+    public static string Details(Report r,DateTime start,DateTime end,string? interval=null)
     {
-        var bars=Visible(r,start,end);if(bars.Count==0)return r.MarketEnabled?"\nMarktkurs: nicht verfügbar":"";
-        return "\n"+r.MarketSymbol+" · "+r.MarketInterval+" · "+bars.Count+" Kerzen im Zeitfenster\nO / H / L / C: "+string.Join(" / ",new[]{bars[0].Open,bars.Max(b=>b.High),bars.Min(b=>b.Low),bars[^1].Close}.Select(v=>v.ToString("N3")+" "+Unit(r)))+"\n"+r.MarketSource;
+        interval??=r.MarketInterval=="Auto"?"H1":r.MarketInterval;var bars=r.MarketEnabled&&r.MarketLoadedSymbol==r.MarketSymbol?MarketData.Aggregate(r,interval).Where(b=>b.Utc<end&&MarketData.BlockEnd(b.Utc,interval)>start).ToList():new();if(bars.Count==0)return r.MarketEnabled?"\nMarktkurs: nicht verfügbar":"";
+        return "\n"+r.MarketSymbol+" · Quelle H1 → Anzeige "+interval+" · "+bars.Count+" feste Kerzenblöcke berühren das Zeitfenster\nKerzenblöcke: "+DisplayFormat.Time(bars[0].Utc)+" → "+DisplayFormat.Time(MarketData.BlockEnd(bars[^1].Utc,interval))+"\nO / H / L / C über diese Blöcke: "+string.Join(" / ",new[]{bars[0].Open,bars.Max(b=>b.High),bars.Min(b=>b.Low),bars[^1].Close}.Select(v=>v.ToString("N3",System.Globalization.CultureInfo.GetCultureInfo(Localization.English?"en-US":"de-DE"))+" "+Unit(r)))+"\n"+r.MarketSource;
     }
 }

@@ -23,11 +23,12 @@ public sealed class Trade
 }
 public sealed class Report
 {
+    public string StrategyMode {get;set;}="basket";
     public bool MarketEnabled {get;set;}=false;
     public bool MarketDemoInclude {get;set;}=false;public int MarketDemoYear {get;set;}=2025;
     public bool MarketSourceTimeIsBroker {get;set;}=false;public bool MarketIsCustom {get;set;}=false;public string MarketTerminalPath {get;set;}="";public string MarketMt5Symbol {get;set;}="";
     public string MarketSymbol {get;set;}="XAUUSD";public string MarketBrokerSymbol {get;set;}="";public string MarketLoadedSymbol {get;set;}="";
-    public string MarketInterval {get;set;}="H4";public string MarketSource {get;set;}="";public string MarketStatus {get;set;}="";
+    public string MarketInterval {get;set;}="Auto";public string MarketSource {get;set;}="";public string MarketStatus {get;set;}="";
     public int BrokerUtcOffsetMinutes {get;set;}=180;public int BrokerWinterOffsetMinutes {get;set;}=120;public string BrokerTimeRule {get;set;}="Fixed";public bool BrokerTimeConfirmed {get;set;}=false;
     public List<MarketBar> MarketBars {get;set;}=new();
     public decimal? EquityReferencePeak {get;set;}

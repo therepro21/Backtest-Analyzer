@@ -36,12 +36,14 @@ public static class SeriesAnalysis
     public static List<TradingSeries> Regular(Report report)=>Selected(report).Where(c=>!TestEnd(report,c)).ToList();
     public static (DateTime? Time,decimal Profit,decimal Excluded) Adjusted(Report report)
     {
+        if(report.StrategyMode=="single")return(null,report.Deals.Sum(d=>d.Net),0);
         var cycles=Selected(report);var end=cycles.LastOrDefault(c=>TestEnd(report,c));if(end==null)return(null,report.Deals.Sum(d=>d.Net),0);
         var previous=cycles.LastOrDefault(c=>c.End<end.Start);if(previous==null)return(null,0,end.Net);
         return(previous.End,report.Deals.Where(d=>d.Time<=previous.End).Sum(d=>d.Net),end.Net);
     }
     public static List<TradingSeries> ForReport(Report report)
     {
+        if(report.StrategyMode=="single")return report.Trades.OrderBy(t=>t.Open).Select(t=>new TradingSeries(t.Open,t.Close,t.Net,1,t.Volume)).ToList();
         if(report.Series!=null)return report.Series;
         try{return report.Series=Build(report.Deals);}
         catch(InvalidDataException ex){string warning="Serienauswertung nicht verfügbar: "+ex.Message;if(!report.Warnings.Contains(warning))report.Warnings.Add(warning);return report.Series=new();}
