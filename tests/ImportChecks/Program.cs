@@ -31,7 +31,31 @@ try
     File.WriteAllText(htmlPath,html,new UTF8Encoding(true));Check(Parser.Load(htmlPath));
     Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);File.WriteAllText(htmlPath,html,Encoding.GetEncoding(1252));Check(Parser.Load(htmlPath));
     var s=new Stats(a.Closed);if(s.Std!=0||s.Mean!=3600||s.Weighted!=3600)throw new Exception("Duration statistics failed");
-    Console.WriteLine("Passed: streamed chunk boundaries, UTF-16/UTF-8/Windows-1252, entities, XLSX inline strings, original inputs, signed costs, position IDs and HTML/XLSX parity.");
+    var cross=new Report{InitialDeposit=100,Balances=new(){(new DateTime(2024,1,1),100),(new DateTime(2024,12,31,23,0,0),99),(new DateTime(2025,1,1,1,0,0),116)},
+        Deals=new(){new("1","1","42",new DateTime(2024,12,31,23,0,0),"X","buy","in",1,100,0,-1,0,0,99,""),new("2","2","42",new DateTime(2025,1,1,1,0,0),"X","sell","out",1,120,20,-1,-2,0,116,"")}};
+    Parser.Reconstruct(cross);var years=YearAnalysis.Scopes(cross);var y2025=years[2];
+    if(years.Count!=3||y2025.InitialDeposit!=99||y2025.OpeningBuyLots!=1||y2025.Closed.Single().Seconds!=7200||y2025.Deals.Sum(d=>d.Net)!=17||years.Skip(1).Sum(y=>y.Deals.Sum(d=>d.Net))!=cross.Deals.Sum(d=>d.Net))throw new Exception("Annual carry and booking reconciliation failed");
+    if(YearAnalysis.MaxDrawdown(y2025,true).Money!=0)throw new Exception("Annual DD reset failed");
+    var cycles=SeriesAnalysis.Build(cross.Deals);if(cycles.Count!=1||cycles[0].Entries!=1||cycles[0].WeekdaySeconds!=7200||cycles[0].Net!=16)throw new Exception("Flat-to-flat cycle failed");
+    var friday=new Trade{Open=new DateTime(2026,5,8,23,0,0),Close=new DateTime(2026,5,11,1,0,0)};
+    if(friday.Seconds!=180000||Stats.HoldingSeconds(friday,true)!=7200)throw new Exception("Weekend overlap failed");
+    var grouping=new Report{InitialDeposit=100,Balances=new(){(new DateTime(2026,1,1),100),(new DateTime(2026,1,1).AddSeconds(10),60),(new DateTime(2026,1,1).AddSeconds(40),110),(new DateTime(2026,1,1).AddSeconds(90),50),(new DateTime(2026,1,1).AddSeconds(150),115)},EquityPoints=new(){(new DateTime(2026,1,1),100,100,0),(new DateTime(2026,1,1).AddSeconds(10),60,70,0),(new DateTime(2026,1,1).AddSeconds(40),110,110,0)}};
+    var display=AccountCurves.DisplayBalances(grouping);if(display.Count!=3||display.Any(p=>p.Balance<100)||AccountCurves.EquityDrawdowns(grouping).Max(p=>p.Percent)!=30)throw new Exception("Display grouping changed genuine equity or retained intra-window balance spikes");
+    grouping.BalanceWindowSeconds=0;if(AccountCurves.DisplayBalances(grouping).Count!=5)throw new Exception("Raw balance display failed");
+    var cachePath=Path.Combine(folder,"fixture.tst");byte[] cache=new byte[1456+1640+4+3*256+4+4+64+4+2*32];
+    void Int(int offset,int value)=>BitConverter.GetBytes(value).CopyTo(cache,offset);
+    void Long(int offset,long value)=>BitConverter.GetBytes(value).CopyTo(cache,offset);
+    void Double(int offset,double value)=>BitConverter.GetBytes(value).CopyTo(cache,offset);
+    void Unicode(int offset,string value)=>Encoding.Unicode.GetBytes(value).CopyTo(cache,offset);
+    Int(0,505);Unicode(132,"SingleTestCache");Unicode(432,"Fixture");Unicode(944,"XAUUSD");Unicode(1284,"USD");Double(1348,100);Int(1404,3);Int(1412,1);Int(1416,2);
+    int dealsOffset=1456+1640+4;Int(dealsOffset-4,3);long epoch=1767225600;
+    for(int i=0;i<3;i++){int offset=dealsOffset+i*256;Long(offset,i+1);Long(offset+16,epoch+i*3600);Unicode(offset+24,i==0?"":"XAUUSD");Long(offset+248,i==0?0:42);Int(offset+224,i==0?2:i==1?0:1);Int(offset+228,i==2?1:0);Long(offset+120,i==0?0:100000000);Double(offset+128,i==0?100:i==2?20:0);Double(offset+136,i==0?0:-1);Double(offset+152,i==2?-2:0);}
+    int positionCount=dealsOffset+3*256+4;Int(positionCount,1);int statesCount=positionCount+4+64;Int(statesCount,2);int stateOffset=statesCount+4;
+    Long(stateOffset,epoch);Double(stateOffset+8,100);Double(stateOffset+16,100);Long(stateOffset+32,epoch+7200);Double(stateOffset+40,116);Double(stateOffset+48,116);
+    File.WriteAllBytes(cachePath,cache);var c=TesterCache.Load(cachePath);if(c.Deals.Count!=2||c.Closed.Count!=1||c.Closed[0].Net!=16||c.EquityPoints.Count!=2||c.Closed[0].Estimated)throw new Exception("Cache data validation failed");
+    Int(0,506);File.WriteAllBytes(cachePath,cache);try{TesterCache.Load(cachePath);throw new Exception("Unknown cache version accepted");}catch(InvalidDataException){}
+    Int(0,505);Int(1404,4);File.WriteAllBytes(cachePath,cache);try{TesterCache.Load(cachePath);throw new Exception("Corrupt section accepted");}catch(InvalidDataException){}
+    Console.WriteLine("Passed: streamed imports, encodings, costs, position IDs, HTML/XLSX parity, annual carry/booking reconciliation, weekend overlap, flat-to-flat cycles, balance display grouping with unchanged equity DD, and accepted/rejected cache versions and section sizes.");
 }
 finally {Directory.Delete(folder,true);}
 static void Check(Report r)

@@ -10,8 +10,9 @@ public static class AcrobatHover
 {
     public static void Add(PdfDocument document,PdfPage page,Report report,double plotX,double plotTop,double plotWidth,double plotHeight,double detailX,double detailTop,double detailWidth,double detailHeight)
     {
-        var points=new List<(DateTime Time,decimal Balance,decimal Money,decimal Percent,decimal Buy,decimal Sell)>();decimal peak=report.InitialDeposit,buy=0,sell=0;
-        if(report.Balances.Count>0)points.Add((report.Balances[0].Time,report.Balances[0].Balance,0,0,0,0));
+        if(report.EquityPoints.Count==0)return;
+        var points=new List<(DateTime Time,decimal Balance,decimal Money,decimal Percent,decimal Buy,decimal Sell)>();decimal peak=report.InitialDeposit,buy=report.OpeningBuyLots,sell=report.OpeningSellLots;
+        if(report.Balances.Count>0)points.Add((report.Balances[0].Time,report.Balances[0].Balance,0,0,buy,sell));
         foreach(var deal in report.Deals.OrderBy(d=>d.Time))
         {
             if(deal.Entry=="in"){if(deal.Side=="buy")buy+=deal.Volume;else sell+=deal.Volume;}
@@ -23,6 +24,22 @@ public static class AcrobatHover
             }
             if(!deal.Balance.HasValue)continue;var balance=deal.Balance.Value;peak=Math.Max(peak,balance);var money=peak-balance;
             points.Add((deal.Time,balance,money,peak>0?money/peak*100:0,buy,sell));
+        }
+        if(report.EquityPoints.Count>0)
+        {
+            points.Clear();var balances=AccountCurves.DisplayBalances(report);var drawdowns=AccountCurves.EquityDrawdowns(report);var deals=report.Deals.OrderBy(d=>d.Time).ToList();int dealIndex=0,balanceIndex=0;buy=report.OpeningBuyLots;sell=report.OpeningSellLots;
+            foreach(var p in drawdowns)
+            {
+                while(dealIndex<deals.Count&&deals[dealIndex].Time<=p.Time)
+                {
+                    var d=deals[dealIndex++];if(d.Entry=="in"){if(d.Side=="buy")buy+=d.Volume;else sell+=d.Volume;}
+                    else if(d.Entry is "out" or "outby" or "out/by"){if(d.Side=="sell")buy-=d.Volume;else sell-=d.Volume;}
+                    else if(d.Side=="sell"){var used=Math.Min(buy,d.Volume);buy-=used;sell+=d.Volume-used;}
+                    else{var used=Math.Min(sell,d.Volume);sell-=used;buy+=d.Volume-used;}
+                }
+                while(balanceIndex+1<balances.Count&&balances[balanceIndex+1].Time<=p.Time)balanceIndex++;
+                points.Add((p.Time,balances[balanceIndex].Balance,p.Money,p.Percent,buy,sell));
+            }
         }
         if(points.Count<2)return;
         var form=document.Internals.Catalog.Elements.GetDictionary("/AcroForm");
@@ -43,13 +60,15 @@ public static class AcrobatHover
         string hide="var f=this.getField("+JsonSerializer.Serialize(fieldName)+");if(f)f.display=display.hidden;";
         PdfDictionary Action(string script){var action=new PdfDictionary(document);action.Elements.SetName("/S","/JavaScript");action.Elements.SetString("/JS",script);return action;}
         var pageActions=page.Elements.GetDictionary("/AA")??new PdfDictionary(document);pageActions.Elements["/C"]=Action(hide);page.Elements["/AA"]=pageActions;
-        const int bands=160;double total=Math.Max(1,(points[^1].Time-points[0].Time).TotalSeconds);int cursor=0;
+        const int bands=160;double total=Math.Max(1,((report.AxisEnd??points[^1].Time)-(report.AxisStart??points[0].Time)).TotalSeconds);DateTime axisStart=report.AxisStart??points[0].Time;int cursor=0;
         string N(decimal value)=>value.ToString("N2",CultureInfo.GetCultureInfo("de-DE"));string currency=report.Find("Währung","Currency");
         for(int i=0;i<bands;i++)
         {
-            var start=points[0].Time.AddSeconds(total*i/bands);var end=points[0].Time.AddSeconds(total*(i+1)/bands);while(cursor+1<points.Count&&points[cursor+1].Time<start)cursor++;
+            var start=axisStart.AddSeconds(total*i/bands);var end=axisStart.AddSeconds(total*(i+1)/bands);while(cursor+1<points.Count&&points[cursor+1].Time<start)cursor++;
+            if(start>points[^1].Time)continue;
             int best=cursor;for(int j=cursor;j<points.Count&&points[j].Time<=end;j++)if(points[j].Percent>points[best].Percent)best=j;var point=points[best];
-            string text="Zeitfenster: "+start.ToString("dd.MM.yy HH:mm")+" - "+end.ToString("dd.MM.yy HH:mm")+"\nDD-Spitzenbeobachtung / letzter Stand: "+point.Time.ToString("dd.MM.yy HH:mm:ss")+"\nBalance: "+N(point.Balance)+" "+currency+"    Drawdown: "+N(point.Money)+" "+currency+" / "+N(point.Percent)+" %\nBuy-Lots: "+N(point.Buy)+"    Sell-Lots: "+N(point.Sell)+"    Netto-Lots: "+N(point.Buy-point.Sell)+"\nEquity und bestaetigte Positionsanzahl: nicht exportiert";
+            string equity=report.EquityPoints.Count>0?N(report.EquityPoints.LastOrDefault(p=>p.Time<=point.Time).Equity)+" "+currency:"nicht exportiert";
+            string text="Zeitfenster: "+start.ToString("dd.MM.yy HH:mm")+" - "+end.ToString("dd.MM.yy HH:mm")+"\nDD-Spitzenbeobachtung / letzter Stand: "+point.Time.ToString("dd.MM.yy HH:mm:ss")+"\nBalance ("+report.BalanceWindowSeconds+" s): "+N(point.Balance)+" "+currency+"    "+(report.EquityPoints.Count>0?"Equity-DD":"Balance-DD")+": "+N(point.Money)+" "+currency+" / "+N(point.Percent)+" %\nBuy-Lots: "+N(point.Buy)+"    Sell-Lots: "+N(point.Sell)+"    Netto-Lots: "+N(point.Buy-point.Sell)+"\nEquity: "+equity;
             var hit=Widget("BA_Hit_"+document.Pages.Count+"_"+i,"/Btn",plotX+plotWidth*i/bands,plotTop,plotWidth/bands,plotHeight,0,65536);hit.Elements.SetString("/TU",text);
             string show="var f=this.getField("+JsonSerializer.Serialize(fieldName)+");if(f){f.value="+JsonSerializer.Serialize(text)+";f.display=display.noPrint;}";
             var actions=new PdfDictionary(document);actions.Elements["/E"]=Action(show);actions.Elements["/X"]=Action(hide);actions.Elements["/Fo"]=Action(show);actions.Elements["/Bl"]=Action(hide);actions.Elements["/U"]=Action(show);hit.Elements["/AA"]=actions;

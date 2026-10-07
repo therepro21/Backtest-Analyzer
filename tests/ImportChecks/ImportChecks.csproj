@@ -3,6 +3,10 @@
   <ItemGroup>
     <Compile Include="../../src/BacktestAnalyzer/Analysis.cs" Link="Analysis.cs" />
     <Compile Include="../../src/BacktestAnalyzer/ReportRows.cs" Link="ReportRows.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/YearAnalysis.cs" Link="YearAnalysis.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/TesterCache.cs" Link="TesterCache.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/SeriesAnalysis.cs" Link="SeriesAnalysis.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/AccountCurves.cs" Link="AccountCurves.cs" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
   </ItemGroup>
 </Project>
