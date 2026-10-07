@@ -13,7 +13,7 @@ public static class AccountPainter
     {
         c.Rect(x,y,width,height,palette.Surface);c.Text(overlay?"Balance und Equity · Orange: Equity unter Balance":"Balance und echter Equity-Drawdown",x+12,y+10,12,palette.Ink,true);
         c.Text(report.Find("Währung","Currency")+" · Balance: "+report.BalanceWindowSeconds+" s Buchungsfenster · Equity: gespeicherte Tester-Punkte",x+12,y+31,8,palette.Muted);
-        var balances=AccountCurves.DisplayBalances(report);var dd=AccountCurves.EquityDrawdowns(report);
+        var balances=AccountCurves.DisplayBalances(report);var fullBalances=balances;var dd=AccountCurves.EquityDrawdowns(report);
         if(balances.Count<2){c.Text("Keine ausreichende Balance-Zeitreihe vorhanden.",x+15,y+65,10,palette.Muted);return;}
         if(dd.Count<2)
         {
@@ -32,13 +32,13 @@ public static class AccountPainter
         decimal pad=Math.Max(1,(high-low)*.04m);low-=pad;high+=pad;var axis=ChartAxis.Nice((double)low,(double)high,6);low=(decimal)axis.Low;high=(decimal)axis.High;
         double X(DateTime time)=>left+plot*(time-start).TotalSeconds/span;double Y(decimal value)=>balBottom-(double)((value-low)/(high-low))*(balBottom-top);
         double ddScale=Math.Max(10,Math.Ceiling((double)dd.Max(p=>p.Percent)/10)*10);double DY(decimal pct)=>ddTop+(double)pct/ddScale*(bottom-ddTop);
-        foreach(var tick in axis.Ticks){double yy=Y((decimal)tick);c.Line(left,yy,right,yy,palette.Line);c.Text(ChartAxis.Number(tick),x+29,yy-5,8,palette.Muted);}
+        foreach(var tick in axis.Ticks){double yy=Y((decimal)tick);c.Line(left,yy,right,yy,palette.Line);c.Text(ChartAxis.Number(tick)+" "+DisplayFormat.Currency(report),x+29,yy-5,8,palette.Muted);}
         var month=new DateTime(start.Year,start.Month,1);int months=(end.Year-start.Year)*12+end.Month-start.Month+1;int labelStride=report.AnalysisYear.HasValue?1:Math.Max(1,(int)Math.Ceiling(months/8d));
         for(int i=0;month<end;month=month.AddMonths(1),i++){if(month<start)continue;double xx=X(month);c.Line(xx,top,xx,bottom,palette.Line);if(i%labelStride==0)c.Text(month.ToString(report.AnalysisYear.HasValue?"MMM":"MM.yy"),xx+1,bottom+9,8,palette.Muted);}
         c.VerticalText("Balance ("+report.Find("Währung","Currency")+")",x+13,(top+balBottom)/2,7,palette.Muted);if(!overlay)c.VerticalText("Equity-DD (%)",x+13,(ddTop+bottom)/2,7,palette.Muted);
         // Step chart: a booked balance remains unchanged until the next settled booking window.
         for(int i=1;i<balances.Count;i++)
-        {double xx=X(balances[i-1].Time),next=X(balances[i].Time),yy=Y(balances[i-1].Balance);c.Rect(xx,yy,Math.Max(0,next-xx),Math.Max(0,balBottom-yy),palette.Dark?"#20354F":"#E7EFF7");c.Line(xx,yy,next,yy,palette.Positive,1.2);c.Line(next,yy,next,Y(balances[i].Balance),palette.Positive,1.2);}
+        {double xx=X(balances[i-1].Time),next=X(balances[i].Time),yy=Y(balances[i-1].Balance);c.Rect(xx,yy,Math.Max(0,next-xx),Math.Max(0,balBottom-yy),palette.Dark?"#365E86":"#E7EFF7");c.Line(xx,yy,next,yy,palette.Positive,1.2);c.Line(next,yy,next,Y(balances[i].Balance),palette.Positive,1.2);}
         // Retain local equity minima and DD maxima before display reduction.
         int stride=Math.Max(1,dd.Count/Math.Max(100,(int)plot));var keep=new SortedSet<int>{0,dd.Count-1};
         for(int i=0;i<dd.Count;i+=stride){var indices=Enumerable.Range(i,Math.Min(stride,dd.Count-i));keep.Add(indices.MinBy(j=>dd[j].Equity));keep.Add(indices.MaxBy(j=>dd[j].Equity));keep.Add(indices.MaxBy(j=>dd[j].Percent));}
@@ -48,10 +48,14 @@ public static class AccountPainter
             var a=points[i-1];var b=points[i];double xx=X(a.Time),next=X(b.Time);
             if(overlay)
             {
-                for(double pixel=xx;pixel<next;pixel+=1){var time=start.AddSeconds(span*(pixel-left)/plot);while(cursor+1<balances.Count&&balances[cursor+1].Time<=time)cursor++;decimal eq=a.Equity+(b.Equity-a.Equity)*(decimal)((pixel-xx)/Math.Max(.001,next-xx));if(eq<balances[cursor].Balance)c.Line(pixel,Y(balances[cursor].Balance),pixel,Y(eq),palette.Dark?"#493724":"#FBEBD8",1.2);}
+                for(double pixel=xx;pixel<next;pixel+=1){var time=start.AddSeconds(span*(pixel-left)/plot);while(cursor+1<balances.Count&&balances[cursor+1].Time<=time)cursor++;decimal eq=a.Equity+(b.Equity-a.Equity)*(decimal)((pixel-xx)/Math.Max(.001,next-xx));if(eq<balances[cursor].Balance)c.Line(pixel,Y(balances[cursor].Balance),pixel,Y(eq),palette.Dark?"#8D6639":"#FBEBD8",1.2);}
                 c.Line(xx,Y(a.Equity),next,Y(b.Equity),palette.Negative,1.2);
             }
-            else {for(double pixel=xx;pixel<next;pixel+=1){decimal pct=a.Percent+(b.Percent-a.Percent)*(decimal)((pixel-xx)/Math.Max(.001,next-xx));c.Line(pixel,ddTop,pixel,DY(pct),palette.Dark?"#493724":"#FBEBD8",1.2);}c.Line(xx,DY(a.Percent),next,DY(b.Percent),palette.Negative,1.2);}
+            else {for(double pixel=xx;pixel<next;pixel+=1){decimal pct=a.Percent+(b.Percent-a.Percent)*(decimal)((pixel-xx)/Math.Max(.001,next-xx));c.Line(pixel,ddTop,pixel,DY(pct),palette.Dark?"#8D6639":"#FBEBD8",1.2);}c.Line(xx,DY(a.Percent),next,DY(b.Percent),palette.Negative,1.2);}
+        }
+        for(int band=0;band<64;band++){
+            DateTime begin=start.AddSeconds(span*band/64),finish=start.AddSeconds(span*(band+1)/64);var samples=dd.Where(q=>q.Time>=begin&&q.Time<finish).ToList();if(samples.Count==0)continue;var sample=samples.MaxBy(q=>q.Percent);var balance=fullBalances.LastOrDefault(q=>q.Time<=sample.Time).Balance;var margin=report.EquityPoints.LastOrDefault(q=>q.Time<=sample.Time).DepositLoad;
+            c.Hover(left+plot*band/64,top,plot/64,bottom-top,"Zeitfenster: "+DisplayFormat.Time(begin)+" – "+DisplayFormat.Time(finish)+"\nDD-Spitzenbeobachtung: "+DisplayFormat.Time(sample.Time)+"\nBalance: "+DisplayFormat.Money(balance,report)+"\nEquity: "+DisplayFormat.Money(sample.Equity,report)+"\nEquity-DD: "+DisplayFormat.Money(sample.Money,report)+$" / {sample.Percent:N2} %\nMargin-Auslastung: {margin:N2} %\n"+Exposure.Text(report,sample.Time));
         }
         if(!overlay){double step=ddScale>50?25:10;for(double value=0;value<=ddScale;value+=step){double yy=DY((decimal)value);c.Line(left,yy,right,yy,palette.Line);c.Text((value==0?"0":(-value).ToString("0"))+" %",x+40,yy-5,8,palette.Muted);}}
     }

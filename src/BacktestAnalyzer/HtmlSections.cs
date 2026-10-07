@@ -7,6 +7,7 @@ namespace BacktestAnalyzer;
 public sealed class SvgCanvas:ICanvas
 {
     public StringBuilder Content {get;}=new();
+    public void Hover(double x,double y,double w,double h,string text)=>Content.Append($"<rect x='{N(x)}' y='{N(y)}' width='{N(w)}' height='{N(h)}' fill='transparent'><title>{E(Localization.T(text))}</title></rect>");
     static string N(double number)=>number.ToString("0.###",CultureInfo.InvariantCulture);
     static string E(string value)=>WebUtility.HtmlEncode(value);
     static string C(string color)=>color switch{"#FFFFFF"=>"var(--surface)","#F2F5F9"=>"var(--background)","#173047"=>"var(--ink)","#52677D"=>"var(--muted)","#DCE4ED"=>"var(--line)","#113B65"=>"var(--blue)","#C87500"=>"var(--orange)","#E7EFF7"=>"var(--balancefill)","#FBEBD8"=>"var(--lossfill)","#EDBB77"=>"var(--heatmid)","#DCE8F5"=>"var(--heatlow)",_=>color};

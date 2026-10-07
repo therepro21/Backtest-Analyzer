@@ -9,6 +9,8 @@ Copyright © 2026 Michael P. Thiess. Dieses Projekt steht in keiner Verbindung z
 
 ## Neu in Beta 1.0
 
+- Neueste Überarbeitung: [App, PDF-Tooltips, Handelsdauer und Vergleich](docs/BETA-1.0-UPDATE.md). Native PDF-Tooltips ohne Mouseover-JavaScript; Kapitel/Lesezeichen, Dreiergruppen, rechtsbündige Geldbeträge mit Währungssymbol und feinere Kurvenlinien. Analysen als `.bta` speichern und zwei Backtests vergleichen.
+- Standardmäßig Wochenendtage ausgeschlossen und eine einstellbare pauschale Nachtpause abgezogen. Das ist eine Annahme, keine automatisch erkannte historische Marktschließung.
 - Senkrechte Beschriftungen direkt an der Y-Achse, deutlich getrennte Wochentagsfarben mit Punktmarkierungen und kleine, kompakte Methodikhinweise in App und PDF.
 - Gesamtbericht, Jahresdetails oder Kombination auswählbar. Samstag/Sonntag einzeln aktivierbar, standardmäßig geschlossen; die automatische Erkennung prüft tatsächliche Handelsbuchungen. Kontobewegungen werden dadurch nicht entfernt.
 - Monatstabellen mit gehandelten Einstiegslots, Währung, ausgeschriebenen Monatsnamen, Jahressummen und Equity-DD-Maximum. Zusätzliche Order-/Trade-Auswertungen nach Stunde, Wochentag und Monat.

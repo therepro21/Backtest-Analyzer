@@ -7,6 +7,8 @@
     <Compile Include="../../src/BacktestAnalyzer/TesterCache.cs" Link="TesterCache.cs" />
     <Compile Include="../../src/BacktestAnalyzer/SeriesAnalysis.cs" Link="SeriesAnalysis.cs" />
     <Compile Include="../../src/BacktestAnalyzer/AccountCurves.cs" Link="AccountCurves.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/AnalysisFile.cs" Link="AnalysisFile.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/Exposure.cs" Link="Exposure.cs" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
   </ItemGroup>
 </Project>

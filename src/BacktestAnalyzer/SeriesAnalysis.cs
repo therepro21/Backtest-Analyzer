@@ -3,7 +3,7 @@ namespace BacktestAnalyzer;
 public sealed record TradingSeries(DateTime Start,DateTime? End,decimal Net,int Entries,decimal MaxGrossLots)
 {
     public double CalendarSeconds=>End.HasValue?(End.Value-Start).TotalSeconds:0;
-    public double WeekdaySeconds=>Stats.HoldingSeconds(new Trade{Open=Start,Close=End},true);
+    public double WeekdaySeconds=>Stats.HoldingSeconds(new Trade{Open=Start,Close=End},true,false,false,0);
 }
 public static class SeriesAnalysis
 {

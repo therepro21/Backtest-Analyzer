@@ -43,7 +43,7 @@ try
     var atomicCycles=SeriesAnalysis.Build(atomicReport.Deals);if(atomicCycles.Count!=2||atomicCycles[0].Net!=7||atomicCycles[0].End!=cycleStart.AddSeconds(20))throw new Exception("Same-second bookings split a cycle");
     var adjustedCycle=SeriesAnalysis.Adjusted(atomicReport);if(adjustedCycle.Profit!=7||adjustedCycle.Excluded!=-2||adjustedCycle.Time!=cycleStart.AddSeconds(20)||SeriesAnalysis.Regular(atomicReport).Count!=1)throw new Exception("Test-end cycle adjustment failed");
     var friday=new Trade{Open=new DateTime(2026,5,8,23,0,0),Close=new DateTime(2026,5,11,1,0,0)};
-    if(friday.Seconds!=180000||Stats.HoldingSeconds(friday,true)!=7200)throw new Exception("Weekend overlap failed");
+    if(friday.Seconds!=180000||Stats.HoldingSeconds(friday,true,false,false,0)!=7200)throw new Exception("Weekend overlap failed");
     var grouping=new Report{InitialDeposit=100,Balances=new(){(new DateTime(2026,1,1),100),(new DateTime(2026,1,1).AddSeconds(10),60),(new DateTime(2026,1,1).AddSeconds(40),110),(new DateTime(2026,1,1).AddSeconds(90),50),(new DateTime(2026,1,1).AddSeconds(150),115)},EquityPoints=new(){(new DateTime(2026,1,1),100,100,0),(new DateTime(2026,1,1).AddSeconds(10),60,70,0),(new DateTime(2026,1,1).AddSeconds(40),110,110,0)}};
     var display=AccountCurves.DisplayBalances(grouping);if(display.Count!=3||display.Any(p=>p.Balance<100)||AccountCurves.EquityDrawdowns(grouping).Max(p=>p.Percent)!=30)throw new Exception("Display grouping changed genuine equity or retained intra-window balance spikes");
     grouping.BalanceWindowSeconds=0;if(AccountCurves.DisplayBalances(grouping).Count!=5)throw new Exception("Raw balance display failed");
@@ -60,6 +60,10 @@ try
     File.WriteAllBytes(cachePath,cache);var c=TesterCache.Load(cachePath);if(c.Deals.Count!=2||c.Closed.Count!=1||c.Closed[0].Net!=16||c.EquityPoints.Count!=2||c.Closed[0].Estimated)throw new Exception("Cache data validation failed");
     Int(0,506);File.WriteAllBytes(cachePath,cache);try{TesterCache.Load(cachePath);throw new Exception("Unknown cache version accepted");}catch(InvalidDataException){}
     Int(0,505);Int(1404,4);File.WriteAllBytes(cachePath,cache);try{TesterCache.Load(cachePath);throw new Exception("Corrupt section accepted");}catch(InvalidDataException){}
+    if(Stats.HoldingSeconds(friday,true)!=3600)throw new Exception("Night pause and weekend overlap failed");
+    var night=new Trade{Open=new DateTime(2026,1,5,0,15,0),Close=new DateTime(2026,1,5,0,45,0)};if(Stats.HoldingSeconds(night,true)!=0)throw new Exception("Partial overnight pause failed");
+    var saturday=new Trade{Open=new DateTime(2026,1,10,10,0,0),Close=new DateTime(2026,1,10,12,0,0)};if(Stats.HoldingSeconds(saturday,true)!=0||Stats.HoldingSeconds(saturday,true,true)!=7200)throw new Exception("Selectable Saturday failed");
+    var saved=Path.Combine(folder,"analysis.bta");AnalysisFile.Save(c,saved);var loaded=AnalysisFile.Load(saved);if(loaded.Deals.Count!=c.Deals.Count||loaded.EquityPoints.Count!=2||loaded.EquityPoints[1].Equity!=116||loaded.Closed.Single().Net!=16)throw new Exception("Saved analysis roundtrip failed");if(Exposure.At(c,c.Deals.First().Time).Buy!=1||Exposure.At(c,c.Deals.Last().Time).Buy!=0)throw new Exception("Exposure reconstruction failed");
     Console.WriteLine("Passed: streamed imports, encodings, costs, position IDs, HTML/XLSX parity, annual carry/booking reconciliation, weekend overlap, flat-to-flat cycles, balance display grouping with unchanged equity DD, and accepted/rejected cache versions and section sizes.");
 }
 finally {Directory.Delete(folder,true);}

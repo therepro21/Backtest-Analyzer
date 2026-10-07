@@ -18,11 +18,11 @@ public static class YearAnalysis
         var ordered=source.Balances.OrderBy(x=>x.Time).ToList();
         decimal opening=ordered.Where(x=>x.Time<start).Select(x=>x.Balance).DefaultIfEmpty(source.InitialDeposit).Last();
         var inventory=Inventory(source.Deals.Where(d=>d.Time<start));
-        var report=new Report{Source=source.Source,Hash=source.Hash,Platform=source.Platform,Metadata=source.Metadata,
+        var report=new Report{Source=source.Source,FullHistory=source.FullHistory.Count>0?source.FullHistory:source.Deals,Hash=source.Hash,Platform=source.Platform,Metadata=source.Metadata,
             InputParameters=source.InputParameters,AvailableColumns=source.AvailableColumns,Warnings=source.Warnings,
             SaturdayTrading=source.SaturdayTrading,SundayTrading=source.SundayTrading,ReportScope=source.ReportScope,InitialDeposit=opening,AnalysisYear=year,AxisStart=start,AxisEnd=end,OpeningBuyLots=inventory.Buy,OpeningSellLots=inventory.Sell,
             BalanceWindowSeconds=source.BalanceWindowSeconds,
-            ExcludeWeekends=source.ExcludeWeekends,
+            ExcludeWeekends=source.ExcludeWeekends,NightPauseMinutes=source.NightPauseMinutes,NightPauseStartMinute=source.NightPauseStartMinute,
             Series=SeriesAnalysis.ForReport(source),LongSeriesHours=source.LongSeriesHours,SeriesAsPercent=source.SeriesAsPercent,
             OpenAtScopeEnd=source.Trades.Count(t=>t.Open<end&&(!t.Close.HasValue||t.Close.Value>=end)),
             HoldingBinMinutes=source.HoldingBinMinutes,HoldingAsPercent=source.HoldingAsPercent,HoldingMaxHours=source.HoldingMaxHours,

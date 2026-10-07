@@ -24,15 +24,17 @@ public sealed class Trade
 public sealed class Report
 {
     public bool SaturdayTrading {get;set;}=false;public bool SundayTrading {get;set;}=false;public string ReportScope {get;set;}="both";
+    public List<Deal> FullHistory {get;set;}=new();
     public string EquitySource {get;set;}="";
     public List<(DateTime Time,decimal Balance,decimal Equity,decimal DepositLoad)> EquityPoints {get;set;}=new();
     public int? AnalysisYear {get;set;} public DateTime? AxisStart {get;set;} public DateTime? AxisEnd {get;set;}
     public int BalanceWindowSeconds {get;set;}=60;
-    public bool ExcludeWeekends {get;set;}=false;
+    public int NightPauseMinutes {get;set;}=60;public int NightPauseStartMinute {get;set;}=0;
+    public bool ExcludeWeekends {get;set;}=true;
     public List<TradingSeries>? Series {get;set;} public double LongSeriesHours {get;set;}=6;public bool SeriesAsPercent {get;set;}=false;
     public int? OpenAtScopeEnd {get;set;}
     public decimal OpeningBuyLots {get;set;} public decimal OpeningSellLots {get;set;}
-    public int HoldingBinMinutes {get;set;}=15; public bool HoldingAsPercent {get;set;}=true; public double HoldingMaxHours {get;set;}=0;
+    public int HoldingBinMinutes {get;set;}=2; public bool HoldingAsPercent {get;set;}=true; public double HoldingMaxHours {get;set;}=0;
     public string Source { get; set; } = ""; public string Hash { get; set; } = ""; public string Platform { get; set; } = "";
     public Dictionary<string, string> Metadata { get; set; } = new(); public List<Deal> Deals { get; set; } = new();
     public List<string> InputParameters { get; set; } = new();
@@ -191,19 +193,27 @@ public sealed class Stats
     public decimal Net=>Trades.Sum(t=>t.Net); public int Wins=>Trades.Count(t=>t.Net>0);public int Losses=>Trades.Count(t=>t.Net<0);
     public decimal? ProfitFactor=>Losses>0?Trades.Where(t=>t.Net>0).Sum(t=>t.Net)/Math.Abs(Trades.Where(t=>t.Net<0).Sum(t=>t.Net)):null;
     public double Std=>Count>1?Math.Sqrt(Durations.Sum(x=>Math.Pow(x-Mean,2))/(Count-1)):0;
-    public double Weighted=>Trades.Sum(t=>(double)t.Volume)>0?Trades.Sum(t=>t.WeightedSeconds)/Trades.Sum(t=>(double)t.Volume):0;
-    public static double HoldingSeconds(Trade trade,bool excludeWeekends=false,bool saturdayTrading=false,bool sundayTrading=false)
+    readonly Func<Trade,double> duration;public double Weighted=>Trades.Sum(t=>(double)t.Volume)>0?Trades.Sum(t=>duration(t)*(double)t.Volume)/Trades.Sum(t=>(double)t.Volume):0;
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Trade,Dictionary<(DateTime Open,DateTime Close,bool Sat,bool Sun,int Minutes,int Start),double>> DurationCache=new();
+    public static double HoldingSeconds(Trade trade,bool excludeWeekends=false,bool saturdayTrading=false,bool sundayTrading=false,int nightMinutes=60,int nightStart=0)
     {
         if(!excludeWeekends||!trade.Close.HasValue)return trade.Seconds;
+        var cache=DurationCache.GetOrCreateValue(trade);var key=(trade.Open,trade.Close.Value,saturdayTrading,sundayTrading,nightMinutes,nightStart);if(cache.TryGetValue(key,out var cached))return cached;
         double seconds=trade.Seconds;var end=trade.Close.Value;
         for(var day=trade.Open.Date;day<=end.Date;day=day.AddDays(1))
             if(day.DayOfWeek==DayOfWeek.Saturday&&!saturdayTrading||day.DayOfWeek==DayOfWeek.Sunday&&!sundayTrading){var from=trade.Open>day?trade.Open:day;var to=end<day.AddDays(1)?end:day.AddDays(1);seconds-=Math.Max(0,(to-from).TotalSeconds);}
-        return Math.Max(0,seconds);
+        for(var day=trade.Open.Date;day<=end.Date;day=day.AddDays(1)){
+            if(day.DayOfWeek==DayOfWeek.Saturday&&!saturdayTrading||day.DayOfWeek==DayOfWeek.Sunday&&!sundayTrading)continue;
+            void Subtract(DateTime pause,DateTime stop){var from=trade.Open>pause?trade.Open:pause;var to=end<stop?end:stop;seconds-=Math.Max(0,(to-from).TotalSeconds);}
+            Subtract(day.AddMinutes(nightStart),day.AddMinutes(Math.Min(1440,nightStart+nightMinutes)));
+            if(nightStart+nightMinutes>1440)Subtract(day,day.AddMinutes(nightStart+nightMinutes-1440));
+        }
+        return cache[key]=Math.Max(0,seconds);
     }
-    public Stats(IEnumerable<Trade> trades,bool excludeWeekends=false,bool saturdayTrading=false,bool sundayTrading=false){Trades=trades.Where(t=>t.Close.HasValue).ToList();Durations=Trades.Select(t=>HoldingSeconds(t,excludeWeekends,saturdayTrading,sundayTrading)).Order().ToArray();Mean=Count>0?Durations.Average():0;}
+    public Stats(IEnumerable<Trade> trades,bool excludeWeekends=false,bool saturdayTrading=false,bool sundayTrading=false,int nightMinutes=60,int nightStart=0){duration=t=>HoldingSeconds(t,excludeWeekends,saturdayTrading,sundayTrading,nightMinutes,nightStart);Trades=trades.Where(t=>t.Close.HasValue).ToList();Durations=Trades.Select(t=>HoldingSeconds(t,excludeWeekends,saturdayTrading,sundayTrading,nightMinutes,nightStart)).Order().ToArray();Mean=Count>0?Durations.Average():0;}
     public double Quantile(double p){if(Count==0)return 0;var z=(Count-1)*p;var lo=(int)Math.Floor(z);var hi=(int)Math.Ceiling(z);return Durations[lo]+(Durations[hi]-Durations[lo])*(z-lo);}
     public static string Duration(double seconds){var t=TimeSpan.FromSeconds(Math.Max(0,seconds));return t.TotalDays>=1?$"{(int)t.TotalDays} d {t.Hours} h {t.Minutes} min":t.TotalHours>=1?$"{(int)t.TotalHours} h {t.Minutes} min {t.Seconds} s":$"{(int)t.TotalMinutes} min {t.Seconds} s";}
     public static readonly double[] Limits={300,900,1800,3600,7200,14400,28800,86400,double.PositiveInfinity};
     public static readonly string[] Bins={"<5m","5-15m","15-30m","30-60m","1-2h","2-4h","4-8h","8-24h",">=24h"};
-    public int Bin(Trade t){for(int i=0;i<Limits.Length;i++)if(t.Seconds<Limits[i])return i;return Limits.Length-1;}
+    public int Bin(Trade t){for(int i=0;i<Limits.Length;i++)if(duration(t)<Limits[i])return i;return Limits.Length-1;}
 }
