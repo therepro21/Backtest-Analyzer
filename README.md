@@ -1,6 +1,6 @@
 # Backtest-Analyzer
 
-**Entwurfs- und Beta-Phase.** Backtest-Analyzer ist ein unabhängiges, lokal arbeitendes Analyseprojekt für exportierte MT4- und MT5-Backtestberichte. Schwerpunkt sind nachvollziehbare Haltezeiten, Verteilungen und saubere A4-Berichte. Der aktuelle Stand ist ein Entwicklungsprototyp; eine freigegebene portable EXE folgt nach der Abstimmung der Datenbasis und Designs.
+**Entwurfs- und Beta-Phase.** Backtest-Analyzer ist ein unabhängiges, lokal arbeitendes Analyseprojekt für exportierte MT4- und MT5-Backtestberichte. Schwerpunkt sind nachvollziehbare Haltezeiten, Verteilungen und saubere A4-Berichte. Der aktuelle Stand ist ein Entwicklungsprototyp. Ein lokales, selbständiges Windows-x64-Testpaket wurde gebaut und geprüft; eine stabile Freigabe steht noch aus.
 
 ![Logo](assets/logo.png)
 
@@ -81,9 +81,45 @@ Backtest-Analyzer.exe --export report.html output.pdf
 Backtest-Analyzer.exe --export report.html detail.pdf --detail --dark
 Backtest-Analyzer.exe --export report.html verified.pdf --confirmed
 Backtest-Analyzer.exe --export report.html fifo.pdf --fifo
+Backtest-Analyzer.exe --export report.xlsx detail.pdf --detail
+Backtest-Analyzer.exe --export-html report.xlsx interactive.html --dark
 ```
 
-Der Prototyp erzeugt daneben eine JSON-Prüfausgabe. Das derzeitige HTML-Importmodell ist auf deutsche und englische Backtestberichte ausgelegt, nicht auf sämtliche denkbaren Kontoauszüge oder Optimierungsberichte. Fehler und ausgelassene Ereignisse müssen geprüft werden; der Prototyp ist noch nicht zur unbeaufsichtigten Verarbeitung gedacht.
+Importprüfungen: `dotnet run --project tests/ImportChecks -c Release`. Die synthetischen Daten prüfen Kodierungen, Streamgrenzen, HTML-Entities, Excel-Zellen, Kosten, Positionsbezüge und Formatgleichheit. Private Backtests gehören nicht in die Tests oder das Repository.
+
+Der Prototyp erzeugt daneben eine JSON-Prüfausgabe. Der Import unterstützt deutsche und englische MT4-HTML- und MT5-HTML/XLSX-Backtestberichte, nicht sämtliche Kontoauszüge oder Optimierungsberichte. XLSX-Unterstützung bezieht sich auf den unveränderten MT5-Export mit `Sheet1`, textuellen Zeitstempeln und dessen Spaltenlayout; beliebig umformatierte Excel-Dateien sind nicht zugesichert. Excel muss nicht installiert sein. Fehler und ausgelassene Ereignisse müssen geprüft werden; der Prototyp ist noch nicht zur unbeaufsichtigten Verarbeitung gedacht.
+
+### Verarbeitung großer Exporte
+
+HTML wird zeilenweise gelesen; nur eine Tabellenzeile wird als HTML geparst. XLSX wird direkt aus dem ZIP-Container mit `XmlReader` gelesen. Die Shared-String-Tabelle bleibt im Speicher, die gesamte Tabelle und XML-Dokumentstruktur nicht. Dateihashes werden aus einem Stream berechnet. Geschlossene Einstiege werden aus dem aktiven Suchinventar entfernt. Bei vielen gleichzeitig offenen Positionen bleibt der Aufwand des Konsistenzmodells von der Größe dieses Inventars abhängig.
+
+XLSX ist die bevorzugte Eingabe, wenn beide Exporte vorliegen: mehrere Kennzahlen haben mehr Nachkommastellen, die Dateien sind kleiner und der gemessene Speicherbedarf war geringer. HTML bleibt unterstützt und kann beim Lesen etwas schneller sein. Die App zeigt Import- und Zuordnungszeit an. Geprüft wurde ein aktueller Build-5833-Export mit mehr als 100.000 Deals; die bisherige pauschale 100-MB-Dateigrenze wurde entfernt. Das ist keine Garantie für beliebig große oder fehlerhafte Dateien.
+
+Die native Haltezeitansicht bietet jetzt gleich breite Intervalle von 5/15/30/60 Minuten, Prozent oder Anzahl sowie Ausschnitte über 6/24 Stunden. Prozentbasis ist stets die gesamte ausgewählte Tradezahl. Die Balance zeigt den Prozent-Drawdown dauerhaft darunter. Für große Kurven werden Extrema vor dem Zeichnen zusammengefasst; Statistiken verwenden sämtliche Punkte. Der Scatterplot zeigt bei großen Dateien eine deterministische Auswahl und ist deshalb keine vollständige Punktwolke. App und exportierter Standardbericht bleiben ein Beta-Prototyp; individuelle Analyseberichte können zusätzliche Auswertungen enthalten.
+
+### Interaktiver Report als offline nutzbare HTML-Datei
+
+Der zusätzliche HTML-Export enthält die gesamte Account-History unabhängig von den Tradefiltern, Logo und Daten direkt in einer Datei. Er benötigt keinen Server oder CDN. Ein Zeitcursor zeigt beobachtete Balance, Drawdown in Kontowährung und Prozent, vorheriges Kontohöchstniveau und offene Buy-/Sell-/Netto-Lots. Navigation ist mit Maus, Touch, Pfeiltasten oder Deal-Tasten möglich; Monatsauswahl, Ctrl+Mausrad-Zoom und Light-/Darkmode sind vorhanden. Alle Dealpunkte bleiben für den Cursor erhalten, die gezeichnete Kurve wird unter Erhalt der Extrema reduziert. Zeitstempel werden als Broker-Kalenderzeit angezeigt, ohne automatische Umrechnung in die Zeitzone des Browsers.
+
+Equity und exakte Anzahl offener Positionen werden nicht erfunden. Eine Equity-Zeitreihe fehlt in den geprüften Standardreports, die Lotinventur ist keine Marginberechnung. Fehlende Dealzeilen, Anfangsbestände oder zusätzliche Kontobewegungen können die Interpretation einschränken. Der Export bildet beobachtete Handelsdeal-Balances ab und ist kein Ersatz für eine komplette Kontobuchungs-/Equity-Zeitreihe.
+
+Das A4-PDF enthält im Detailbericht zusätzlich **Acrobat-Mouseover** auf der Balance-/Drawdownkurve. Transparente Zeitfenster-Widgets zeigen eine DD-Spitzenbeobachtung beziehungsweise den letzten bekannten Stand mit Balance, DD-Geldbetrag/-Prozent und Buy-/Sell-/Netto-Lots. Bei vielen Deals ist dies eine vorbereitete Auswahl je Zeitfenster; der HTML-Cursor hält dagegen alle Beobachtungen bereit. Equity und bestätigte Positionsanzahl bleiben ohne Rohdaten nicht verfügbar.
+
+Die Feldaktionen sind im PDF enthalten. Das schreibgeschützte Detailfeld wird am Bildschirm eingeblendet und beim Drucken ausgeblendet. Ohne ausgeführtes JavaScript bleibt die statische Kurve erhalten; Tooltips sind viewerabhängig. Feldbaum, Appearance-Streams, Scriptwerte und statische Darstellung wurden geprüft. Ein tatsächlicher Desktop-Livetest in Acrobat steht noch aus. Edge unterstützt beispielsweise JavaScript-Formulare nicht. Die PDF-Ansicht in Codex oder im Browser bestätigt deshalb die Acrobat-Funktion nicht. Quellen: [Adobe: PDF-Aktionen](https://helpx.adobe.com/in/acrobat/desktop/edit-documents/apply-pdf-actions/pdf-actions.html), [Adobe: Formularfelder und Tooltips](https://opensource.adobe.com/dc-acrobat-sdk-docs/library/jsdevguide/JS_Dev_AcrobatForms.html), [Adobe: JavaScript API](https://opensource.adobe.com/dc-acrobat-sdk-docs/library/jsapiref/JS_API_AcroJS.html), [Microsoft: Edge-PDF-Funktionen](https://learn.microsoft.com/en-us/deployedge/microsoft-edge-pdf).
+
+### Fehlende Positionsbezüge und zusätzliche Kurvendaten
+
+Standard-Testerberichte können Deal-Ticket und Auftrag enthalten, ohne `DEAL_POSITION_ID` zu exportieren. `DEAL_ORDER` bezeichnet den jeweils ausführenden Auftrag; Öffnungs- und Schließauftrag sind nicht derselbe Schlüssel. Eine belegte Begründung von MetaQuotes für das Weglassen oder einen Schalter zum Einblenden haben wir nicht gefunden. Original-Haltezeiten müssen separat angezeigt und gegen rekonstruierte Dauern geprüft werden. Auch eine später lokal eindeutige Zuordnung kann von früheren Modellentscheidungen abhängen; der Filter ist kein Vollständigkeitsnachweis.
+
+Die belastbare Ergänzung ist ein eigener Deal-Export im getesteten EA, etwa in dessen bestehendem `OnTester()`: `HistorySelect`, `HistoryDealsTotal`, `HistoryDealGetTicket`, anschließend `DEAL_POSITION_ID`, `DEAL_ORDER`, `DEAL_TIME_MSC`, `DEAL_ENTRY`, `DEAL_TYPE`, Symbol, Volumen, Preis und signierte Profit-/Kostenfelder. Reversals und Close-by dürfen nicht als normale Vollschlüsse vereinfacht werden. Der Prototyp importiert einen solchen Zusatzexport derzeit noch nicht.
+
+Für bereits abgeschlossene Tests existieren experimentelle Chartobjekt-/Cache-Ansätze. ObjectsTrade liest Trade-Verbindungslinien, enthält aber keine Commission/Swap und hat eine problematische Tester-Erkennung anhand `Ticket < 100000`. Build-Kompatibilität und vollständige Abdeckung müssen vor Verwendung geprüft werden. Ein normaler Terminal-Historyexport oder Python-Kontozugriff ist kein belegter Zugriff auf eine frühere isolierte Tester-History.
+
+Der Screenshot des Berichtsmenüs mit Open XML und HTML zeigt nicht das Graph-Menü. Nutzerberichte beschreiben zusätzlich **Strategietester → Grafik/Graph → Rechtsklick auf die Balance-/Equitygrafik → CSV speichern**. Die konkrete Verfügbarkeit in Build 5833 ist noch lokal zu prüfen. Eine solche Zeitreihe könnte Equity und Deposit Load ergänzen, liefert aber nicht automatisch Positions-IDs. „Chart öffnen“ öffnet den Instrumentchart.
+
+Bei vollständig geschlossener History ohne Anfangsbestand kann die volumengewichtete Haltedauer unabhängig von der individuellen Paarung aus dem Integral des offenen Volumens bestimmt werden. Das bestätigt weder Positionsmedian noch Extremwerte oder Haltezeitverteilung.
+
+Quellen: [Deal-Eigenschaften](https://www.mql5.com/en/docs/constants/tradingconstants/dealproperties), [OnTester](https://www.mql5.com/en/docs/event_handlers/ontester), [fehlende Position-IDs im Testerbericht](https://www.mql5.com/en/forum/433144), [Graph-CSV und separates Berichtsmenü](https://www.mql5.com/en/forum/462891), [Graph-Dateiformat](https://www.mql5.com/en/forum/432288), [ObjectsTrade](https://www.mql5.com/ru/code/39750), [Microsoft: große SpreadsheetML-Dateien streamen](https://learn.microsoft.com/en-us/office/open-xml/spreadsheet/how-to-parse-and-read-a-large-spreadsheet).
 
 ## Vergleichsdateien
 

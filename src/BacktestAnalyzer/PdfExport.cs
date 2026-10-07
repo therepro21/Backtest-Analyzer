@@ -55,7 +55,10 @@ public static class PdfExport
         {
             var a=NewPage("Detailanalyse / Überblick");double width=a.Page.Width.Point;Headline(a.C,101,width-48);
             a.C.Text(Short(report.Strategy),30,179,17,palette.Ink,true);TextLines(a.C,scope,30,210,width-60,3);
-            Chart(a.C,ChartKind.Balance,24,261,width-48,235);Chart(a.C,ChartKind.Drawdown,24,514,width-48,235);
+            Chart(a.C,ChartKind.Balance,24,261,width-48,340);
+            a.C.Text("Acrobat-Mouseover: Zeitfenster mit DD-Spitzenbeobachtung / letztem Stand.",30,620,9,palette.Muted);
+            a.C.Text("Die statische Kurve bleibt in anderen PDF-Viewern und beim Drucken sichtbar.",30,635,9,palette.Muted);
+            AcrobatHover.Add(doc,a.Page,report,124,317,width-168,241,30,657,width-60,82);
             a=NewPage("Haltezeiten / Verteilung und Streuung");Chart(a.C,ChartKind.Histogram,24,105,width-48,235);Chart(a.C,ChartKind.Ecdf,24,355,width-48,230);Chart(a.C,ChartKind.Boxplot,24,600,width-48,180);
             a=NewPage("Zusammenhang / Ergebnis und Zeit");Chart(a.C,ChartKind.Scatter,24,105,width-48,300);Chart(a.C,ChartKind.Monthly,24,423,width-48,285);
             TextLines(a.C,"Zusammenhänge sind beschreibend. Ein höherer Gewinn bei längerer Haltezeit belegt keine Ursache. Bei Teilausstiegen wird das Ergebnis dem Vollschluss des Entry-Lots zugeordnet.",30,731,width-60,3);
@@ -80,7 +83,7 @@ public static class PdfExport
         for(int i=0;i<pages.Count;i++)
         {
             var page=pages[i];double height=page.Page.Height.Point,width=page.Page.Width.Point;page.Canvas.Text("© "+DateTime.Now.Year+" Michael P. Thiess",24,height-38,9,palette.Muted);page.Canvas.Text(Repository,24,height-23,8,palette.Muted);page.Canvas.Text($"{i+1} / {pages.Count}",width-58,height-30,9,palette.Muted);
-            page.Canvas.Text("BETA 0.1 · Fehler möglich · Keine Anlageberatung · Unabhängig von MetaQuotes",24,height-54,8,palette.Muted);
+            page.Canvas.Text("BETA 0.2 · Fehler möglich · Keine Anlageberatung · Unabhängig von MetaQuotes",24,height-54,8,palette.Muted);
             page.Page.AddWebLink(new PdfRectangle(new XRect(24,12,Math.Min(width-80,300),18)),Repository);page.Graphics.Dispose();
         }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);doc.Save(path);

@@ -23,10 +23,12 @@ public sealed class Trade
 }
 public sealed class Report
 {
+    public int HoldingBinMinutes {get;set;}=15; public bool HoldingAsPercent {get;set;}=true; public double HoldingMaxHours {get;set;}=0;
     public string Source { get; set; } = ""; public string Hash { get; set; } = ""; public string Platform { get; set; } = "";
     public Dictionary<string, string> Metadata { get; set; } = new(); public List<Deal> Deals { get; set; } = new();
     public List<string> InputParameters { get; set; } = new();
     public List<Trade> Trades { get; set; } = new(); public List<string> Warnings { get; set; } = new(); public decimal InitialDeposit { get; set; }
+    public double ImportMilliseconds {get;set;} public double ReconstructionMilliseconds {get;set;} public HashSet<string> AvailableColumns {get;set;}=new();
     public List<(DateTime Time, decimal Balance)> Balances { get; set; } = new();
     public string Strategy => Find("Expertenprogramm", "Expert", "Expert Advisor") is { Length: > 0 } s ? s : Path.GetFileNameWithoutExtension(Source);
     public string Find(params string[] names) { foreach(var n in names) foreach(var p in Metadata) if(Parser.Key(p.Key)==Parser.Key(n)) return p.Value; return ""; }
@@ -43,46 +45,31 @@ public static class Parser
         if(s.Contains(',')&&s.Contains('.')) { if(s.LastIndexOf(',')>s.LastIndexOf('.')) s=s.Replace(".", "").Replace(',', '.'); else s=s.Replace(",", ""); } else if(s.Contains(',')) s=s.Replace(',', '.');
         return decimal.Parse(s,NumberStyles.AllowLeadingSign|NumberStyles.AllowDecimalPoint|NumberStyles.AllowExponent,CultureInfo.InvariantCulture)*factor;
     }
+    static readonly Dictionary<string,string> FieldKeys = new[]{"Time","Zeit","Type","Typ","Deal","Trade","Transaktion","Order","Auftrag","Balance","Kontostand","Profit","Gewinn","Direction","Richtung","Entry","Position","Position ID","PositionId","Symbol","Volume","Volumen","Price","Preis","Commission","Kommission","Swap","Fee","Gebühr","Gebuehr","Comment","Kommentar","Size","Lots","Größe"}.ToDictionary(x=>x,Key);
+    static string FieldKey(string s)=>FieldKeys.TryGetValue(s,out var k)?k:Key(s);
     static bool Date(string s,out DateTime dt)=>DateTime.TryParseExact(s.Trim(),new[]{"yyyy.MM.dd HH:mm:ss","yyyy.MM.dd HH:mm","yyyy-MM-dd HH:mm:ss","yyyy-MM-ddTHH:mm:ss"},CultureInfo.InvariantCulture,DateTimeStyles.None,out dt);
     public static Report Load(string path,bool useProfitMatching=true)
     {
-        var bytes=File.ReadAllBytes(path); if(bytes.Length>100_000_000)throw new InvalidDataException("Datei ist größer als 100 MB.");
-        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        string html;
-        if(bytes.Length>1&&bytes[0]==255&&bytes[1]==254)html=Encoding.Unicode.GetString(bytes);
-        else if(bytes.Length>1&&bytes[0]==254&&bytes[1]==255)html=Encoding.BigEndianUnicode.GetString(bytes);
-        else {try{html=new UTF8Encoding(false,true).GetString(bytes);}catch(DecoderFallbackException){html=Encoding.GetEncoding(1252).GetString(bytes);}}
-        var doc=new HtmlDocument();doc.LoadHtml(html);
-        var rows=(doc.DocumentNode.SelectNodes("//tr")??new HtmlNodeCollection(null)).Select(r=>r.SelectNodes("./td|./th")?.Select(c=>HtmlEntity.DeEntitize(c.InnerText).Trim()).ToArray()??Array.Empty<string>()).ToList();
-        var report=new Report{Source=Path.GetFullPath(path),Hash=Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()};
-        foreach(var row in rows)for(int i=0;i<row.Length-1;i++)if(row[i].EndsWith(':'))report.Metadata.TryAdd(row[i].TrimEnd(':'),row[i+1]);
+        var timer=System.Diagnostics.Stopwatch.StartNew();
+        using var hashStream=File.OpenRead(path);
+        var report=new Report{Source=Path.GetFullPath(path),Hash=Convert.ToHexString(SHA256.HashData(hashStream)).ToLowerInvariant()};
         bool readingInputs=false;
-        foreach(var row in rows)
-        {
-            if(row.Length>1 && new[]{"eingaben","inputs","parameters"}.Contains(Key(row[0])))
-            { readingInputs=true; if(row[1].Contains('='))report.InputParameters.Add(row[1]); continue; }
-            if(!readingInputs)continue;
-            if(row.Length>1 && row[0].Length==0 && row[1].Contains('='))report.InputParameters.Add(row[1]);
-            else readingInputs=false;
-        }
-        if(report.InputParameters.Count>0)
-        {
-            var inputKey=report.Metadata.Keys.FirstOrDefault(k=>new[]{"eingaben","inputs","parameters"}.Contains(Key(k)));
-            if(inputKey is not null)report.Metadata[inputKey]=string.Join(Environment.NewLine,report.InputParameters);
-        }
-        var title=HtmlEntity.DeEntitize(doc.DocumentNode.SelectSingleNode("//title")?.InnerText??"");if(title.StartsWith("Strategy Tester:"))report.Metadata.TryAdd("Expert",title[16..].Trim());
-        foreach(var row in rows.Where(r=>r.Length>=2&&!r.Any(x=>Date(x,out _))))for(int i=0;i<row.Length-1;i++)if(new[]{"Initial deposit","Total net profit","Profit factor","Modeling quality","Total trades"}.Contains(row[i],StringComparer.OrdinalIgnoreCase))report.Metadata.TryAdd(row[i],row[i+1]);
-        // Preserve provenance of headline values. These are not an equity time series.
-        var deposit=report.Find("Ersteinlage","Ersteinzahlung","Initial Deposit","Anfangseinzahlung","Initial deposit");
-        if(deposit.Length>0){var m=Regex.Match(deposit,@"[-+]?\d[\d\s.,]*");if(m.Success)report.InitialDeposit=Number(m.Value);}
         Dictionary<string,int>? header=null; bool mt5=false;
-        foreach(var row in rows)
+        foreach(var row in ReportRows.Read(path))
         {
-            var k=row.Select(Key).ToArray();
-            if(k.Any(x=>x is "direction" or "richtung" or "entry")&&k.Any(x=>x is "deal" or "trade" or "transaktion")) {header=new();for(int i=0;i<k.Length;i++)header.TryAdd(k[i],i);mt5=true;report.Platform="MT5";continue;}
+            bool dated=row.Length>0&&Date(row[0],out _);
+            if(!dated)
+            {
+                for(int i=0;i<row.Length-1;i++)if(row[i].EndsWith(':'))report.Metadata.TryAdd(row[i].TrimEnd(':'),row[i+1]);
+                for(int i=0;i<row.Length-1;i++)if(new[]{"Initial deposit","Total net profit","Profit factor","Modeling quality","Total trades"}.Contains(row[i],StringComparer.OrdinalIgnoreCase))report.Metadata.TryAdd(row[i],row[i+1]);
+                if(row.Length>1&&new[]{"eingaben","inputs","parameters"}.Contains(Key(row[0]))) {readingInputs=true;if(row[1].Contains('='))report.InputParameters.Add(row[1]);}
+                else if(readingInputs) {if(row.Length>1&&row[0].Length==0&&row[1].Contains('='))report.InputParameters.Add(row[1]);else readingInputs=false;}
+            }
+            var k=dated?Array.Empty<string>():row.Select(Key).ToArray();
+            if(k.Any(x=>x is "direction" or "richtung" or "entry")&&k.Any(x=>x is "deal" or "trade" or "transaktion")) {header=new();for(int i=0;i<k.Length;i++)header.TryAdd(k[i],i);mt5=true;report.Platform="MT5";report.AvailableColumns.UnionWith(k);continue;}
             if(k.Any(x=>x is "order" or "auftrag")&&k.Any(x=>x is "time" or "zeit")&&k.Any(x=>x is "type" or "typ")&&!k.Any(x=>x is "status" or "state")&&!mt5){header=new();for(int i=0;i<k.Length;i++)header.TryAdd(k[i],i);report.Platform="MT4";continue;}
             if(header==null)continue;
-            string Get(params string[] aliases){foreach(var alias in aliases)if(header.TryGetValue(Key(alias),out var i)&&i<row.Length)return row[i];return "";}
+            string Get(params string[] aliases){foreach(var alias in aliases)if(header.TryGetValue(FieldKey(alias),out var i)&&i<row.Length)return row[i];return "";}
             if(!Date(Get("Time","Zeit"),out var time))continue;
             try
             {
@@ -110,9 +97,19 @@ public static class Parser
             }
             catch(Exception ex)when(ex is FormatException or OverflowException or InvalidDataException){report.Warnings.Add("Zeile nicht auswertbar ("+time.ToString("s")+"): "+ex.Message);}
         }
-        if(report.Deals.Count==0)throw new InvalidDataException("Keine unterstützte Deal-/Trade-Tabelle gefunden. Benötigt wird ein vollständiger MT4/MT5-HTML-Backtestbericht.");
+        if(report.Deals.Count==0)throw new InvalidDataException("Keine unterstützte Deal-/Trade-Tabelle gefunden. Benötigt wird ein vollständiger MT4-HTML- oder MT5-HTML/XLSX-Backtestbericht.");
+        var deposit=report.Find("Ersteinlage","Ersteinzahlung","Initial Deposit","Anfangseinzahlung");
+        if(deposit.Length>0){var m=Regex.Match(deposit,@"[-+]?\d[\d\s.,]*");if(m.Success)report.InitialDeposit=Number(m.Value);}
+        var inputKey=report.Metadata.Keys.FirstOrDefault(k=>new[]{"eingaben","inputs","parameters"}.Contains(Key(k)));
+        if(inputKey is not null)report.Metadata[inputKey]=string.Join(Environment.NewLine,report.InputParameters);
+        report.ImportMilliseconds=timer.Elapsed.TotalMilliseconds; timer.Restart();
         Reconstruct(report,useProfitMatching);
-        if(report.Platform=="MT5"&&report.Deals.Any(d=>d.Position.Length==0))report.Warnings.Insert(0,"MT5-HTML enthält keine Position-IDs. Gleichzeitige Einstiege werden über ein P/L-Konsistenzmodell oder FIFO zugeordnet und entsprechend markiert. Das bleibt modellabhängig; bestätigte Positionszuordnung erfordert DEAL_POSITION_ID.");
+        report.ReconstructionMilliseconds=timer.Elapsed.TotalMilliseconds;
+        var countText=report.Find("Anzahl Deals","Total Deals");
+        if(countText.Length>0&&decimal.TryParse(countText.Replace(" ",""),NumberStyles.Number,CultureInfo.InvariantCulture,out var expectedCount)&&expectedCount!=report.Deals.Count)
+            report.Warnings.Add("Dealanzahl weicht vom Originalbericht ab: importiert "+report.Deals.Count+", Original "+countText+". Vollständigkeit prüfen.");
+        if(report.Platform=="MT5"&&report.Deals.Any(d=>d.Position.Length==0))report.Warnings.Insert(0,"MT5-Export enthält keine Position-IDs. Gleichzeitige Einstiege werden über ein P/L-Konsistenzmodell oder FIFO zugeordnet und entsprechend markiert. Auch spätere lokal eindeutige Zuordnungen können von früheren Modellentscheidungen abhängen. Bestätigte Positionszuordnung erfordert DEAL_POSITION_ID.");
+        if(report.Platform=="MT5"&&!report.AvailableColumns.Contains("fee")&&!report.AvailableColumns.Contains("gebuhr"))report.Warnings.Add("Separate Gebühren nicht verfügbar: keine Fee-/Gebühr-Spalte. Ein fehlendes Feld bedeutet nicht Gebührenfreiheit.");
         var expected=report.Find("Nettogewinn gesamt","Total Net Profit");if(expected.Length>0){try{var actual=report.Deals.Sum(x=>x.Net);if(Math.Abs(Number(expected)-actual)>.05m)report.Warnings.Add("Nettoergebnis weicht vom MT-Bericht ab. Kosten, ausgelassene Zeilen oder Kontobewegungen prüfen.");}catch(FormatException){}}
         report.Warnings.Add("Haltezeit: Kalenderzeit in Broker-Zeit, Entry-Lot bis Vollschluss. Bei Teilausstiegen zusätzlich volumengewichtete Haltedauer. Keine Zeitzonenumrechnung ohne Broker-Zeitzone.");
         report.Warnings.Add("Balance-Kurve wird aus den exportierten Kontoständen dargestellt. Equity, MAE und MFE werden nicht aus geschlossenen Trades geschätzt; vorhandene MT-Kennzahlen bleiben als Quelle gekennzeichnet.");
@@ -159,7 +156,7 @@ public static class Parser
                     if(volume<=0)break;decimal used=Math.Min(volume,t.Remaining);decimal denominator=d.Entry is "inout" or "in/out"?exitVolume:d.Volume;
                     decimal pnl=denominator>0?d.Profit*used/denominator:0;decimal costs=(d.Commission+d.Swap+d.Fee)*used/d.Volume;
                     t.Net+=pnl+costs;t.Remaining-=used;t.WeightedSeconds+=(double)used*(d.Time-t.Open).TotalSeconds;t.Exits++;t.LastExit=d.Time;
-                    if(t.Remaining==0)t.Close=d.Time;volume-=used;
+                    if(t.Remaining==0){t.Close=d.Time;open.Remove(t);}volume-=used;
                 }
                 if(volume>0&&d.Entry is not ("inout" or "in/out")){r.Warnings.Add("Nicht zugeordnetes Ausstiegsvolumen: Deal "+d.Id+", "+volume.ToString(CultureInfo.InvariantCulture));continue;}
             }
@@ -180,12 +177,12 @@ public static class Parser
 public sealed class Stats
 {
     public List<Trade> Trades { get; } public int Count=>Trades.Count; public double[] Durations { get; }
-    public double Mean=>Count>0?Durations.Average():0; public double Median=>Quantile(.5);public double Min=>Count>0?Durations[0]:0;public double Max=>Count>0?Durations[^1]:0;
+    public double Mean {get;} public double Median=>Quantile(.5);public double Min=>Count>0?Durations[0]:0;public double Max=>Count>0?Durations[^1]:0;
     public decimal Net=>Trades.Sum(t=>t.Net); public int Wins=>Trades.Count(t=>t.Net>0);public int Losses=>Trades.Count(t=>t.Net<0);
     public decimal? ProfitFactor=>Losses>0?Trades.Where(t=>t.Net>0).Sum(t=>t.Net)/Math.Abs(Trades.Where(t=>t.Net<0).Sum(t=>t.Net)):null;
     public double Std=>Count>1?Math.Sqrt(Durations.Sum(x=>Math.Pow(x-Mean,2))/(Count-1)):0;
     public double Weighted=>Trades.Sum(t=>(double)t.Volume)>0?Trades.Sum(t=>t.WeightedSeconds)/Trades.Sum(t=>(double)t.Volume):0;
-    public Stats(IEnumerable<Trade> trades){Trades=trades.Where(t=>t.Close.HasValue).ToList();Durations=Trades.Select(t=>t.Seconds).Order().ToArray();}
+    public Stats(IEnumerable<Trade> trades){Trades=trades.Where(t=>t.Close.HasValue).ToList();Durations=Trades.Select(t=>t.Seconds).Order().ToArray();Mean=Count>0?Durations.Average():0;}
     public double Quantile(double p){if(Count==0)return 0;var z=(Count-1)*p;var lo=(int)Math.Floor(z);var hi=(int)Math.Ceiling(z);return Durations[lo]+(Durations[hi]-Durations[lo])*(z-lo);}
     public static string Duration(double seconds){var t=TimeSpan.FromSeconds(Math.Max(0,seconds));return t.TotalDays>=1?$"{(int)t.TotalDays} d {t.Hours} h {t.Minutes} min":t.TotalHours>=1?$"{(int)t.TotalHours} h {t.Minutes} min {t.Seconds} s":$"{(int)t.TotalMinutes} min {t.Seconds} s";}
     public static readonly double[] Limits={300,900,1800,3600,7200,14400,28800,86400,double.PositiveInfinity};
