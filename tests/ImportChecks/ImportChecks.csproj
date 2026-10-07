@@ -9,6 +9,9 @@
     <Compile Include="../../src/BacktestAnalyzer/AccountCurves.cs" Link="AccountCurves.cs" />
     <Compile Include="../../src/BacktestAnalyzer/AnalysisFile.cs" Link="AnalysisFile.cs" />
     <Compile Include="../../src/BacktestAnalyzer/Exposure.cs" Link="Exposure.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/MarketData.cs" Link="MarketData.cs" />
+    <Compile Include="../../src/BacktestAnalyzer/Localization.cs" Link="Localization.cs" />
+    <PackageReference Include="SharpCompress" Version="0.50.4" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
   </ItemGroup>
 </Project>

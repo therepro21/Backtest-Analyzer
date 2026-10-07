@@ -64,7 +64,18 @@ try
     var night=new Trade{Open=new DateTime(2026,1,5,0,15,0),Close=new DateTime(2026,1,5,0,45,0)};if(Stats.HoldingSeconds(night,true)!=0)throw new Exception("Partial overnight pause failed");
     var saturday=new Trade{Open=new DateTime(2026,1,10,10,0,0),Close=new DateTime(2026,1,10,12,0,0)};if(Stats.HoldingSeconds(saturday,true)!=0||Stats.HoldingSeconds(saturday,true,true)!=7200)throw new Exception("Selectable Saturday failed");
     var saved=Path.Combine(folder,"analysis.bta");AnalysisFile.Save(c,saved);var loaded=AnalysisFile.Load(saved);if(loaded.Deals.Count!=c.Deals.Count||loaded.EquityPoints.Count!=2||loaded.EquityPoints[1].Equity!=116||loaded.Closed.Single().Net!=16)throw new Exception("Saved analysis roundtrip failed");if(Exposure.At(c,c.Deals.First().Time).Buy!=1||Exposure.At(c,c.Deals.Last().Time).Buy!=0)throw new Exception("Exposure reconstruction failed");
-    Console.WriteLine("Passed: streamed imports, encodings, costs, position IDs, HTML/XLSX parity, annual carry/booking reconciliation, weekend overlap, flat-to-flat cycles, balance display grouping with unchanged equity DD, and accepted/rejected cache versions and section sizes.");
+    var zone=TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
+    if(MarketData.CalculateOffset(new DateTime(2026,10,7,19,0,0),new DateTime(2026,10,7,20,0,0),zone)!=180)throw new Exception("Summer server offset failed");
+    if(MarketData.CalculateOffset(new DateTime(2026,1,7,23,30,0),new DateTime(2026,1,8,0,30,0),zone)!=120)throw new Exception("Winter offset/date rollover failed");
+    var market=new Report{MarketEnabled=true,MarketSymbol="XAUUSD",MarketLoadedSymbol="XAUUSD",BrokerTimeRule="EU",MarketInterval="H4",LongSeriesHours=3,Balances=new(){(new DateTime(2024,1,1),100),(new DateTime(2025,1,1),110)}};
+    if(MarketData.Offset(market,new DateTime(2026,1,7))!=120||MarketData.Offset(market,new DateTime(2026,7,7))!=180)throw new Exception("Historical DST failed");
+    market.BrokerTimeRule="Fixed";market.BrokerUtcOffsetMinutes=180;market.MarketBars=new(){new(new DateTime(2024,1,1,21,0,0),100,110,90,105),new(new DateTime(2024,1,1,22,0,0),105,120,100,115),new(new DateTime(2024,1,2,1,0,0),115,125,110,120)};
+    var agg=MarketData.Aggregate(market);if(agg.Count!=2||agg[0].Utc!=new DateTime(2024,1,2)||agg[0].Open!=100||agg[0].Close!=115||agg[0].High!=120||agg[0].Low!=90)throw new Exception("Broker-aligned H4 OHLC failed");
+    market.MarketInterval="D1";if(MarketData.Aggregate(market).Count!=1)throw new Exception("Daily aggregation failed");
+    var annual=YearAnalysis.ForYear(market,2024);if(!annual.MarketEnabled||annual.MarketBars.Count!=3||annual.LongSeriesHours!=3)throw new Exception("Annual market settings carry failed");
+    market.Trades=c.Trades;var marketSaved=Path.Combine(folder,"market.bta");AnalysisFile.Save(market,marketSaved);var marketLoaded=AnalysisFile.Load(marketSaved);if(marketLoaded.MarketBars.Count!=3||marketLoaded.BrokerUtcOffsetMinutes!=180||marketLoaded.MarketInterval!="D1")throw new Exception("Market analysis persistence failed");
+    var csv=Path.Combine(folder,"prices.csv");File.WriteAllText(csv,"Time,Open,High,Low,Close\n2024-01-02 00:00:00,100,110,90,105\n");MarketData.ImportCsv(market,csv,180);if(market.MarketBars.Single().Utc!=new DateTime(2024,1,1,21,0,0))throw new Exception("CSV timezone failed");
+    Console.WriteLine("Passed: imports, IDs, accounting, annual carry, duration, caches, persistence; market UTC/date rollover, DST, H4/D1 OHLC, annual market settings and CSV time conversion.");
 }
 finally {Directory.Delete(folder,true);}
 static void Check(Report r)

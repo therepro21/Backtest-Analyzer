@@ -23,6 +23,18 @@ public sealed class Trade
 }
 public sealed class Report
 {
+    public bool MarketEnabled {get;set;}=false;
+    public bool MarketDemoInclude {get;set;}=false;public int MarketDemoYear {get;set;}=2025;
+    public bool MarketSourceTimeIsBroker {get;set;}=false;public bool MarketIsCustom {get;set;}=false;public string MarketTerminalPath {get;set;}="";public string MarketMt5Symbol {get;set;}="";
+    public string MarketSymbol {get;set;}="XAUUSD";public string MarketBrokerSymbol {get;set;}="";public string MarketLoadedSymbol {get;set;}="";
+    public string MarketInterval {get;set;}="H4";public string MarketSource {get;set;}="";public string MarketStatus {get;set;}="";
+    public int BrokerUtcOffsetMinutes {get;set;}=180;public int BrokerWinterOffsetMinutes {get;set;}=120;public string BrokerTimeRule {get;set;}="Fixed";public bool BrokerTimeConfirmed {get;set;}=false;
+    public List<MarketBar> MarketBars {get;set;}=new();
+    public decimal? EquityReferencePeak {get;set;}
+    public Report Range(DateTime start,DateTime end)
+    {
+        if(end<=start)throw new ArgumentException("Ende muss nach Anfang liegen.");var r=(Report)MemberwiseClone();r.AxisStart=start;r.AxisEnd=end;r.AnalysisYear=null;r.Balances=Balances.Where(b=>b.Time>=start&&b.Time<=end).ToList();var balance=Balances.LastOrDefault(b=>b.Time<start);if(balance.Time!=default)r.Balances.Insert(0,(start,balance.Balance));r.EquityPoints=EquityPoints.Where(b=>b.Time>=start&&b.Time<=end).ToList();var equity=EquityPoints.LastOrDefault(b=>b.Time<start);if(equity.Time!=default)r.EquityPoints.Insert(0,(start,equity.Balance,equity.Equity,equity.DepositLoad));r.EquityReferencePeak=EquityPoints.Where(b=>b.Time<=start).Select(b=>b.Equity).DefaultIfEmpty(InitialDeposit).Max();return r;
+    }
     public bool SaturdayTrading {get;set;}=false;public bool SundayTrading {get;set;}=false;public string ReportScope {get;set;}="both";
     public List<Deal> FullHistory {get;set;}=new();
     public string EquitySource {get;set;}="";

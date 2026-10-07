@@ -36,7 +36,7 @@ public static class PdfExport
             var g=XGraphics.FromPdfPage(page);var c=new PdfCanvas(g,doc,page);pages.Add((page,g,c));double width=page.Width.Point,height=page.Height.Point;
             c.Rect(0,0,width,height,palette.Background);c.Rect(24,18,width-48,67,palette.Surface);
             g.DrawRectangle(new XPen(XColor.FromArgb(17,59,101),.65),24,18,width-48,67);
-            using var image=XImage.FromStream(new MemoryStream(Logo));g.DrawImage(image,32,23,55,55);if(dark)LogoBackground.Paint(g,image,32,23,55,55);
+            c.Rect(32,23,55,55,dark?"#D6EBFF":"#FFFFFF");VectorBrand.Draw(c,32,23,55,dark?"#D6EBFF":"#FFFFFF");
             double brandSize=23;double brandWidth=g.MeasureString("Backtest-Analyzer",new XFont("Backtest UI",brandSize,XFontStyleEx.Bold)).Width;
             c.Text("Backtest-Analyzer",100,38,brandSize,palette.Ink,true);
             string pageLabel=title.Contains("Strategieparameter")||title.Contains("Originalkennzahlen / Gesamttest")?"Settings":report.AnalysisYear.HasValue?"Details "+report.AnalysisYear:"Gesamtübersicht";
@@ -235,6 +235,16 @@ public static class PdfExport
             }
         }
         var sourceFiles=new List<string>{sourceReport.Source};var folder=Path.GetDirectoryName(sourceReport.Source)!;var stem=Path.GetFileNameWithoutExtension(sourceReport.Source);if(Directory.Exists(folder))sourceFiles.AddRange(Directory.EnumerateFiles(folder,stem+"*",SearchOption.TopDirectoryOnly).Where(f=>new[]{".html",".xlsx",".png"}.Contains(Path.GetExtension(f).ToLowerInvariant())));
+        if(sourceReport.MarketEnabled&&sourceReport.MarketDemoInclude&&sourceReport.MarketBars.Count>0)
+        {
+            foreach(var demo in new[]{sourceReport,YearAnalysis.ForYear(sourceReport,sourceReport.MarketDemoYear)})
+            {
+                var before=report;report=demo;var originalInterval=report.MarketInterval;
+                var page=NewPage("Marktkerzen-Vergleich / "+(demo.AnalysisYear.HasValue?demo.AnalysisYear.Value.ToString():"Gesamt "+sourceReport.Balances.Min(b=>b.Time).Year+"–"+sourceReport.Balances.Max(b=>b.Time).Year));double ww=page.Page.Width.Point;
+                foreach(var item in new[]{("H1",108d),("H4",324d),("D1",540d)}){report.MarketInterval=item.Item1;AccountPainter.Draw(page.C,report,palette,24,item.Item2,ww-48,208);}
+                report.MarketInterval=originalInterval;TextLines(page.C,"H1 / H4 / T1: gleiche Datenquelle und Zeitachse. In langen Ansichten werden Kerzen pro Pixelgruppe zu OHLC zusammengefasst; deshalb können H1 und H4 ähnlich aussehen. Einzelkerzen in der App per Zeitraum-Zoom prüfen.",30,754,ww-60,3,5.5);report=before;
+            }
+        }
         var attachmentPage=NewPage("Originaldateien / vollständige Historie und Originalgrafiken");double ay=115;attachmentPage.C.Text("Vollständige Originaldateien im PDF enthalten",30,ay,14,palette.Ink,true);ay+=30;foreach(var f in sourceFiles.Distinct().Where(File.Exists)){attachmentPage.C.Text(Path.GetFileName(f),30,ay,9,palette.Ink);ay+=22;}TextLines(attachmentPage.C,"In Acrobat: Anhänge öffnen. Die Originaldateien enthalten sämtliche Order-/Deal-Zeilen, Originalgrafiken und Angaben unverändert. Neu gestaltete Tabellen und Diagramme stehen im Bericht; die Anhänge sichern die vollständige Originalinformation.",30,ay+15,535,6,8);
         PdfAttachments.Add(doc,sourceFiles);
         for(int i=0;i<pages.Count;i++)
