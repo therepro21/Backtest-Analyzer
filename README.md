@@ -1,11 +1,19 @@
 # Backtest-Analyzer
 
-**Beta 0.3 · Windows x64 · portable.** Backtest-Analyzer ist ein unabhängiges, lokal arbeitendes Analyseprojekt für exportierte MT4- und MT5-Backtestberichte. Schwerpunkt sind nachvollziehbare Haltezeiten, Verteilungen und saubere A4-Berichte. Der aktuelle Stand ist ein Entwicklungsprototyp. Ein lokales, selbständiges Windows-x64-Testpaket wurde gebaut und geprüft; eine stabile Freigabe steht noch aus.
+**Beta 1.0 · Windows x64 · portable.** Backtest-Analyzer ist ein unabhängiges, lokal arbeitendes Analyseprojekt für exportierte MT4- und MT5-Backtestberichte. Schwerpunkt sind nachvollziehbare Haltezeiten, Verteilungen und saubere A4-Berichte. Der aktuelle Stand ist ein Entwicklungsprototyp. Ein lokales, selbständiges Windows-x64-Testpaket wurde gebaut und geprüft; eine stabile Freigabe steht noch aus.
 
 ![Logo](assets/logo.png)
 
 Copyright © 2026 Michael P. Thiess. Dieses Projekt steht in keiner Verbindung zu MetaQuotes, MetaTrader, einem Broker oder den Urhebern analysierter Strategien. MetaTrader, MT4 und MT5 dienen nur zur Beschreibung kompatibler Eingabeformate.
 
+
+## Neu in Beta 1.0
+
+- Runde proportionale Diagrammachsen mit vollständigen Geldbeträgen, lesbaren Zeitangaben und zweizeiligen Monatsbeschriftungen.
+- Haltezeitdetails bis einer Stunde und darüber, eigene Y-Skalen, Langzeitansicht mit logarithmischer Zeitachse und gleich breiten Stundenintervallen; kumulative Kurve ebenfalls ausdrücklich logarithmisch, mit 50/90/95/99-Prozent-Zeiten.
+- Buchungen derselben Sekunde werden vor der Zyklusabschlussprüfung gemeinsam verarbeitet. Zyklusergebnisse nach Startstunde/-wochentag ersetzen die bisherige Einzeltrade-Zuordnung.
+- Explizite „end of test“-Schließungen werden separat ausgewiesen. Das tatsächliche Gesamtergebnis bleibt erhalten; der zusätzliche bereinigte Gewinn zeigt den Stand beim letzten regulären Zyklusabschluss davor. Ohne erkennbaren Abschlussgrund keine automatische Entfernung.
+- Lesbare Heatmaps mit Zahl aller/regulärer/langer Zyklen und Top-10-Startzeitfenstern; geringe Fallzahlen werden gekennzeichnet.
 
 ## Neu in Beta 0.3
 

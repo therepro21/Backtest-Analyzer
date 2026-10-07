@@ -37,6 +37,11 @@ try
     if(years.Count!=3||y2025.InitialDeposit!=99||y2025.OpeningBuyLots!=1||y2025.Closed.Single().Seconds!=7200||y2025.Deals.Sum(d=>d.Net)!=17||years.Skip(1).Sum(y=>y.Deals.Sum(d=>d.Net))!=cross.Deals.Sum(d=>d.Net))throw new Exception("Annual carry and booking reconciliation failed");
     if(YearAnalysis.MaxDrawdown(y2025,true).Money!=0)throw new Exception("Annual DD reset failed");
     var cycles=SeriesAnalysis.Build(cross.Deals);if(cycles.Count!=1||cycles[0].Entries!=1||cycles[0].WeekdaySeconds!=7200||cycles[0].Net!=16)throw new Exception("Flat-to-flat cycle failed");
+    var atomicReport=new Report();var cycleStart=new DateTime(2026,1,1);
+    Deal CycleDeal(string id,int second,string side,string entry,decimal net,string comment="")=>new(id,id,id,cycleStart.AddSeconds(second),"XAUUSD",side,entry,1,1,net,0,0,0,null,comment);
+    atomicReport.Deals.AddRange(new[]{CycleDeal("1",0,"buy","in",0),CycleDeal("2",10,"sell","out",3),CycleDeal("3",10,"buy","in",0),CycleDeal("4",20,"sell","out",4),CycleDeal("5",30,"buy","in",0),CycleDeal("6",50,"sell","out",-2,"end of test")});
+    var atomicCycles=SeriesAnalysis.Build(atomicReport.Deals);if(atomicCycles.Count!=2||atomicCycles[0].Net!=7||atomicCycles[0].End!=cycleStart.AddSeconds(20))throw new Exception("Same-second bookings split a cycle");
+    var adjustedCycle=SeriesAnalysis.Adjusted(atomicReport);if(adjustedCycle.Profit!=7||adjustedCycle.Excluded!=-2||adjustedCycle.Time!=cycleStart.AddSeconds(20)||SeriesAnalysis.Regular(atomicReport).Count!=1)throw new Exception("Test-end cycle adjustment failed");
     var friday=new Trade{Open=new DateTime(2026,5,8,23,0,0),Close=new DateTime(2026,5,11,1,0,0)};
     if(friday.Seconds!=180000||Stats.HoldingSeconds(friday,true)!=7200)throw new Exception("Weekend overlap failed");
     var grouping=new Report{InitialDeposit=100,Balances=new(){(new DateTime(2026,1,1),100),(new DateTime(2026,1,1).AddSeconds(10),60),(new DateTime(2026,1,1).AddSeconds(40),110),(new DateTime(2026,1,1).AddSeconds(90),50),(new DateTime(2026,1,1).AddSeconds(150),115)},EquityPoints=new(){(new DateTime(2026,1,1),100,100,0),(new DateTime(2026,1,1).AddSeconds(10),60,70,0),(new DateTime(2026,1,1).AddSeconds(40),110,110,0)}};

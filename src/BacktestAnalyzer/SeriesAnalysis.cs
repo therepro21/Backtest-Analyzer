@@ -11,7 +11,9 @@ public static class SeriesAnalysis
     public static List<TradingSeries> Build(IEnumerable<Deal> history)
     {
         var result=new List<TradingSeries>();decimal buy=0,sell=0,net=0,maxLots=0;int entries=0;DateTime? start=null;
-        foreach(var d in history.OrderBy(d=>d.Time))
+        foreach(var batch in history.OrderBy(d=>d.Time).GroupBy(d=>d.Time))
+        {
+        foreach(var d in batch)
         {
             bool wasFlat=buy+sell==0;
             if(d.Entry=="in"){if(wasFlat)start=d.Time;if(d.Side=="buy")buy+=d.Volume;else sell+=d.Volume;entries++;}
@@ -20,13 +22,23 @@ public static class SeriesAnalysis
             {if(d.Side=="sell"){var c=Math.Min(buy,d.Volume);buy-=c;sell+=d.Volume-c;}else{var c=Math.Min(sell,d.Volume);sell-=c;buy+=d.Volume-c;}entries++;}
             if(buy<0||sell<0)throw new InvalidDataException("Serienauswertung: unvollständiges oder inkonsistentes Einstiegsvolumen.");
             if(start.HasValue){net+=d.Net;maxLots=Math.Max(maxLots,buy+sell);}
-            if(start.HasValue&&buy+sell==0){result.Add(new(start.Value,d.Time,net,entries,maxLots));start=null;net=0;entries=0;maxLots=0;}
+        }
+            if(start.HasValue&&buy+sell==0){result.Add(new(start.Value,batch.Key,net,entries,maxLots));start=null;net=0;entries=0;maxLots=0;}
         }
         if(start.HasValue)result.Add(new(start.Value,null,net,entries,maxLots));return result;
     }
     public static List<TradingSeries> Selected(Report report)
     {
         var all=ForReport(report);return all.Where(s=>s.End.HasValue&&(!report.AnalysisYear.HasValue||s.End.Value.Year==report.AnalysisYear)).ToList();
+    }
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Report,DateTime[]> TestEndTimes=new();
+    public static bool TestEnd(Report report,TradingSeries cycle)=>cycle.End.HasValue&&TestEndTimes.GetValue(report,r=>r.Deals.Where(d=>d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)).Select(d=>d.Time).Distinct().ToArray()).Any(t=>t>=cycle.Start&&t<=cycle.End);
+    public static List<TradingSeries> Regular(Report report)=>Selected(report).Where(c=>!TestEnd(report,c)).ToList();
+    public static (DateTime? Time,decimal Profit,decimal Excluded) Adjusted(Report report)
+    {
+        var cycles=Selected(report);var end=cycles.LastOrDefault(c=>TestEnd(report,c));if(end==null)return(null,report.Deals.Sum(d=>d.Net),0);
+        var previous=cycles.LastOrDefault(c=>c.End<end.Start);if(previous==null)return(null,0,end.Net);
+        return(previous.End,report.Deals.Where(d=>d.Time<=previous.End).Sum(d=>d.Net),end.Net);
     }
     public static List<TradingSeries> ForReport(Report report)
     {

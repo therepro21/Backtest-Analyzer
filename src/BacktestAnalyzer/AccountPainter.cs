@@ -12,7 +12,7 @@ public static class AccountPainter
     public static void Draw(ICanvas c,Report report,Palette palette,double x,double y,double width,double height,bool overlay=false)
     {
         c.Rect(x,y,width,height,palette.Surface);c.Text(overlay?"Balance und Equity · Orange: Equity unter Balance":"Balance und echter Equity-Drawdown",x+12,y+10,12,palette.Ink,true);
-        c.Text("Balance: "+report.BalanceWindowSeconds+" s Buchungsfenster · Equity: gespeicherte Tester-Punkte",x+12,y+31,8,palette.Muted);
+        c.Text(report.Find("Währung","Currency")+" · Balance: "+report.BalanceWindowSeconds+" s Buchungsfenster · Equity: gespeicherte Tester-Punkte",x+12,y+31,8,palette.Muted);
         var balances=AccountCurves.DisplayBalances(report);var dd=AccountCurves.EquityDrawdowns(report);
         if(balances.Count<2){c.Text("Keine ausreichende Balance-Zeitreihe vorhanden.",x+15,y+65,10,palette.Muted);return;}
         if(dd.Count<2)
@@ -29,10 +29,10 @@ public static class AccountPainter
         double left=x+100,right=x+width-20,top=y+58,bottom=y+height-40,plot=right-left,split=overlay?bottom:top+(bottom-top)*.65,balBottom=overlay?bottom:split-12,ddTop=split+12;
         balances=Reduce(balances,start,span,plot);
         decimal low=balances.Min(p=>p.Balance),high=balances.Max(p=>p.Balance);if(overlay){low=Math.Min(low,dd.Min(p=>p.Equity));high=Math.Max(high,dd.Max(p=>p.Equity));}
-        decimal pad=Math.Max(1,(high-low)*.04m);low-=pad;high+=pad;
+        decimal pad=Math.Max(1,(high-low)*.04m);low-=pad;high+=pad;var axis=ChartAxis.Nice((double)low,(double)high,6);low=(decimal)axis.Low;high=(decimal)axis.High;
         double X(DateTime time)=>left+plot*(time-start).TotalSeconds/span;double Y(decimal value)=>balBottom-(double)((value-low)/(high-low))*(balBottom-top);
         double ddScale=Math.Max(10,Math.Ceiling((double)dd.Max(p=>p.Percent)/10)*10);double DY(decimal pct)=>ddTop+(double)pct/ddScale*(bottom-ddTop);
-        for(int i=0;i<=4;i++){double yy=balBottom-(balBottom-top)*i/4;c.Line(left,yy,right,yy,palette.Line);c.Text((low+(high-low)*i/4).ToString("N0"),x+6,yy-5,9,palette.Muted);}
+        foreach(var tick in axis.Ticks){double yy=Y((decimal)tick);c.Line(left,yy,right,yy,palette.Line);c.Text(ChartAxis.Number(tick),x+6,yy-5,8,palette.Muted);}
         var month=new DateTime(start.Year,start.Month,1);int months=(end.Year-start.Year)*12+end.Month-start.Month+1;int labelStride=report.AnalysisYear.HasValue?1:Math.Max(1,(int)Math.Ceiling(months/8d));
         for(int i=0;month<end;month=month.AddMonths(1),i++){if(month<start)continue;double xx=X(month);c.Line(xx,top,xx,bottom,palette.Line);if(i%labelStride==0)c.Text(month.ToString(report.AnalysisYear.HasValue?"MMM":"MM.yy"),xx+1,bottom+9,8,palette.Muted);}
         // Step chart: a booked balance remains unchanged until the next settled booking window.
@@ -52,6 +52,6 @@ public static class AccountPainter
             }
             else {for(double pixel=xx;pixel<next;pixel+=1){decimal pct=a.Percent+(b.Percent-a.Percent)*(decimal)((pixel-xx)/Math.Max(.001,next-xx));c.Line(pixel,ddTop,pixel,DY(pct),palette.Dark?"#493724":"#FBEBD8",1.2);}c.Line(xx,DY(a.Percent),next,DY(b.Percent),palette.Negative,1.2);}
         }
-        if(!overlay)for(int i=0;i<=3;i++){double yy=ddTop+(bottom-ddTop)*i/3;c.Line(left,yy,right,yy,palette.Line);c.Text((-ddScale*i/3).ToString("0.0")+"%",x+40,yy-5,9,palette.Muted);}
+        if(!overlay){double step=ddScale>50?25:10;for(double value=0;value<=ddScale;value+=step){double yy=DY((decimal)value);c.Line(left,yy,right,yy,palette.Line);c.Text((value==0?"0":(-value).ToString("0"))+" %",x+40,yy-5,8,palette.Muted);}}
     }
 }

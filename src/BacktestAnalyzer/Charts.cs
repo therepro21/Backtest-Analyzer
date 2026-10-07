@@ -21,15 +21,16 @@ public static class ChartPainter
     public static string Compact(double n)=>Math.Abs(n)>=1e9?(n/1e9).ToString("0.##",CultureInfo.InvariantCulture)+"B":Math.Abs(n)>=1e6?(n/1e6).ToString("0.##",CultureInfo.InvariantCulture)+"M":Math.Abs(n)>=1000?(n/1000).ToString("0.##",CultureInfo.InvariantCulture)+"K":n.ToString("0.##",CultureInfo.InvariantCulture);
     public static void Draw(ICanvas c,ChartKind kind,Report report,List<Trade> trades,Palette p,double x,double y,double width,double height)
     {
+        if(kind is ChartKind.Histogram or ChartKind.Ecdf or ChartKind.Boxplot){HoldingPainter.Draw(c,kind,report,trades,p,x,y,width,height);return;}
         if(kind is ChartKind.SeriesHeatmap or ChartKind.SeriesCurve){SeriesPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.SeriesCurve);return;}
         if(kind is ChartKind.Balance or ChartKind.Equity){AccountPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.Equity);return;}
         c.Rect(x,y,width,height,p.Surface);var s=new Stats(trades,report.ExcludeWeekends);
-        var title=kind switch { ChartKind.Histogram=>"Haltezeitverteilung",ChartKind.Ecdf=>"Geschlossen nach ... (kumulativer Anteil)",ChartKind.Scatter=>"Haltezeit vs. Nettoergebnis",ChartKind.Balance=>"Balance (exportierte Kontostände)",ChartKind.Drawdown=>"Balance-Drawdown (keine Equity-Kurve)",ChartKind.Monthly=>"Monatsergebnis (gebuchte Deals · gesamte Auswahlperiode)",ChartKind.Hourly=>"Nettoergebnis nach Einstiegsstunde",ChartKind.Weekday=>"Nettoergebnis nach Einstiegswochentag",_=>"Haltezeiten: Gewinner / Verlierer"};
+        var title=kind switch { ChartKind.Histogram=>"Haltezeitverteilung",ChartKind.Ecdf=>"Geschlossen nach ... (kumulativer Anteil)",ChartKind.Scatter=>"Haltezeit vs. Nettoergebnis",ChartKind.Balance=>"Balance (exportierte Kontostände)",ChartKind.Drawdown=>"Balance-Drawdown (keine Equity-Kurve)",ChartKind.Monthly=>"Monatsergebnis (gebuchte Deals · gesamte Auswahlperiode)",ChartKind.Hourly=>"Zyklusergebnis nach Startstunde",ChartKind.Weekday=>"Zyklusergebnis nach Startwochentag",_=>"Haltezeiten: Gewinner / Verlierer"};
         c.Text(title,x+12,y+10,13,p.Ink,true);
         if(kind is ChartKind.Histogram or ChartKind.Ecdf or ChartKind.Boxplot or ChartKind.Scatter)c.Text(report.ExcludeWeekends?"Ohne Samstag/Sonntag":"Kalender-Haltezeit inklusive Wochenenden",x+12,y+height-13,7,p.Muted);
-        double l=x+58,r=x+width-20,t=y+56,b=y+height-43,w=r-l,h=b-t;
+        double l=x+82,r=x+width-20,t=y+56,b=y+height-69,w=r-l,h=b-t;
         if(s.Count==0&&kind is not (ChartKind.Balance or ChartKind.Drawdown)){c.Text("Keine abgeschlossenen Trades für diese Auswahl.",x+15,y+60,11,p.Muted);return;}
-        void Axes(string yl,string xl,double min,double max){c.Text(yl,x+12,y+31,9,p.Muted);for(int i=0;i<=4;i++){double yy=b-h*i/4;c.Line(l,yy,r,yy,p.Line);c.Text(Compact(min+(max-min)*i/4),x+5,yy-5,9,p.Muted);}c.Line(l,b,r,b,p.Line);c.Text(xl,l,b+27,9,p.Muted);}
+        void Axes(string yl,string xl,double min,double max){c.Text(yl,x+12,y+31,8,p.Muted);var axis=ChartAxis.Nice(min,max);foreach(var value in axis.Ticks){double yy=b-h*(value-min)/(max-min);if(yy<t-1||yy>b+1)continue;c.Line(l,yy,r,yy,p.Line);c.Text(ChartAxis.Number(value),x+5,yy-4,8,p.Muted);}c.Line(l,b,r,b,p.Line);c.Text(xl,l,b+45,7,p.Muted);}
         void Legend(){c.Rect(r-178,y+31,8,8,p.Positive);c.Text("Gewinn (+)",r-165,y+29,9,p.Muted);c.Rect(r-83,y+31,8,8,p.Negative);c.Text("Verlust (-)",r-70,y+29,9,p.Muted);}
         if(kind==ChartKind.Histogram)
         {
@@ -52,9 +53,9 @@ public static class ChartPainter
         }
         if(kind==ChartKind.Scatter)
         {
-            double maxX=Math.Max(.01,s.Max/3600),min=Math.Min(0,(double)s.Trades.Min(a=>a.Net)),max=Math.Max(0,(double)s.Trades.Max(a=>a.Net));if(max==min)max=min+1;double range=max-min;min-=range*.05;max+=range*.05;Axes("Netto (Kontowährung)","Haltezeit (h) · hohle Punkte: FIFO-Schätzung",min,max);Legend();
+            double maxX=Math.Max(.01,s.Max/3600),min=Math.Min(0,(double)s.Trades.Min(a=>a.Net)),max=Math.Max(0,(double)s.Trades.Max(a=>a.Net));if(max==min)max=min+1;var sa=ChartAxis.Nice(min,max);min=sa.Low;max=sa.High;Axes("Netto (Kontowährung)","Haltezeit (h) · hohle Punkte: FIFO-Schätzung",min,max);Legend();
             foreach(var a in s.Trades.Where((_,i)=>i%Math.Max(1,s.Count/5000)==0))c.Circle(l+w*Stats.HoldingSeconds(a,report.ExcludeWeekends)/3600/maxX,b-h*((double)a.Net-min)/(max-min),2.3,a.Net>=0?p.Positive:p.Negative,a.Estimated);
-            for(int i=0;i<=4;i++)c.Text(Compact(maxX*i/4),l+w*i/4-8,b+7,9,p.Muted);return;
+            for(int i=0;i<=4;i++)c.Text(ChartAxis.Duration(maxX*3600*i/4),l+w*i/4-8,b+7,8,p.Muted);return;
         }
         if(kind is ChartKind.Balance or ChartKind.Drawdown)
         {
@@ -85,10 +86,10 @@ public static class ChartPainter
         }
         List<(string Label,double Value)> categories;
         if(kind==ChartKind.Monthly){var grouped=report.Deals.GroupBy(a=>a.Time.ToString("yyyy-MM")).ToDictionary(a=>a.Key,a=>(double)a.Sum(z=>z.Net));var start=report.AxisStart??new DateTime(report.Deals.Min(d=>d.Time).Year,report.Deals.Min(d=>d.Time).Month,1);var end=report.AxisEnd??new DateTime(report.Deals.Max(d=>d.Time).Year,report.Deals.Max(d=>d.Time).Month,1).AddMonths(1);categories=new();for(var month=start;month<end;month=month.AddMonths(1))categories.Add((report.AnalysisYear.HasValue?month.ToString("MMM"):month.ToString("yy-MM"),grouped.GetValueOrDefault(month.ToString("yyyy-MM"))));}
-        else if(kind==ChartKind.Hourly)categories=Enumerable.Range(0,24).Select(i=>(i.ToString("00"),(double)s.Trades.Where(a=>a.Open.Hour==i).Sum(a=>a.Net))).ToList();
-        else categories=Enumerable.Range(0,7).Select(i=>(new[]{"Mo","Di","Mi","Do","Fr","Sa","So"}[i],(double)s.Trades.Where(a=>((int)a.Open.DayOfWeek+6)%7==i).Sum(a=>a.Net))).ToList();
-        double low=Math.Min(0,categories.Min(a=>a.Value)),high=Math.Max(0,categories.Max(a=>a.Value));if(low==high)high=low+1;Axes("Netto (Kontowährung)",kind==ChartKind.Monthly?"Buchungsmonat (Broker-Zeit)":kind==ChartKind.Hourly?"Einstiegsstunde (Broker-Zeit)":"Einstiegswochentag",low,high);Legend();double bw=w/categories.Count;double baseline=b-h*(0-low)/(high-low);
-        for(int i=0;i<categories.Count;i++){double yy=b-h*(categories[i].Value-low)/(high-low);bool unavailable=kind==ChartKind.Monthly&&report.AnalysisYear.HasValue&&report.AxisStart!.Value.AddMonths(i)>report.Balances.LastOrDefault().Time;if(unavailable)c.Text("n.v.",l+i*bw,baseline-14,8,p.Muted);else c.Rect(l+i*bw+1,Math.Min(yy,baseline),Math.Max(1,bw-3),Math.Max(1,Math.Abs(yy-baseline)),categories[i].Value>=0?p.Positive:p.Negative);int stride=categories.Count>18?Math.Max(1,categories.Count/6):1;if(i%stride==0)c.Text(categories[i].Label,l+i*bw,b+7,8,p.Muted);}
+        else if(kind==ChartKind.Hourly)categories=Enumerable.Range(0,24).Select(i=>(i.ToString("00"),(double)SeriesAnalysis.Regular(report).Where(a=>a.Start.Hour==i).Sum(a=>a.Net))).ToList();
+        else categories=Enumerable.Range(0,7).Select(i=>(new[]{"Mo","Di","Mi","Do","Fr","Sa","So"}[i],(double)SeriesAnalysis.Regular(report).Where(a=>((int)a.Start.DayOfWeek+6)%7==i).Sum(a=>a.Net))).ToList();
+        double low=Math.Min(0,categories.Min(a=>a.Value)),high=Math.Max(0,categories.Max(a=>a.Value));if(low==high)high=low+1;var nice=ChartAxis.Nice(low,high);low=nice.Low;high=nice.High;Axes("Netto ("+report.Find("Währung","Currency")+")",kind==ChartKind.Monthly?"Buchungsmonat (Broker-Zeit)":kind==ChartKind.Hourly?"Startstunde (Broker-Zeit) · reguläre vollständige Zyklen":"Startwochentag · reguläre vollständige Zyklen",low,high);Legend();double bw=w/categories.Count;double baseline=b-h*(0-low)/(high-low);
+        for(int i=0;i<categories.Count;i++){double yy=b-h*(categories[i].Value-low)/(high-low);bool unavailable=kind==ChartKind.Monthly&&report.AnalysisYear.HasValue&&report.AxisStart!.Value.AddMonths(i)>report.Balances.LastOrDefault().Time;if(unavailable)c.Text("n.v.",l+i*bw,baseline-14,8,p.Muted);else c.Rect(l+i*bw+1,Math.Min(yy,baseline),Math.Max(1,bw-3),Math.Max(1,Math.Abs(yy-baseline)),categories[i].Value>=0?p.Positive:p.Negative);int stride=categories.Count>18?Math.Max(1,categories.Count/6):1;if(i%stride==0){if(kind==ChartKind.Monthly){var date=(report.AxisStart??new DateTime(report.Deals.Min(d=>d.Time).Year,report.Deals.Min(d=>d.Time).Month,1)).AddMonths(i);c.Text(date.ToString("yyyy-MM"),l+i*bw,b+7,7,p.Muted);c.Text(date.ToString("MMMM",CultureInfo.GetCultureInfo("de-DE")),l+i*bw,b+19,7,p.Muted);}else c.Text(categories[i].Label,l+i*bw,b+7,8,p.Muted);}}
     }
 }
 public sealed class WpfCanvas(DrawingContext context):ICanvas

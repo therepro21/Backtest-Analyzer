@@ -31,3 +31,10 @@ Es gibt eine Heatmap und sieben Tageskurven, einen einstellbaren Dauergrenzwert 
 ## Balance-Anzeigefenster
 
 Standard sind feste, ab der ersten geänderten Buchung beginnende Fenster von bis zu 60 Sekunden. Dargestellt wird der letzte gebuchte Bestand jedes Fensters, als Stufenkurve. 0 Sekunden zeigt die Rohbuchungen; 5 und 120 Sekunden sind weitere GUI-Optionen. Die Gruppierung ist eine Anzeigeentscheidung und keine Änderung der Originalbuchungen. Die originale Equityreihe und ihr Drawdown werden nicht geglättet.
+
+
+## Präzisierung in Beta 0.3.1
+
+Mehrere Deals mit identischem Sekundentimestamp werden gemeinsam verarbeitet, bevor der Bestand auf Null geprüft wird. Die History besitzt keine feinere Zeitauflösung; eine innerhalb derselben Sekunde beginnende Folgeposition verhindert daher einen künstlichen Zwischenabschluss. Eigenständige Zyklen mit späteren Zeitstempeln werden nicht pauschal zusammengeführt. Das 60-s-Fenster bleibt eine Balance-Anzeigeoption.
+
+Zyklen mit explizitem Deal-Kommentar „end of test“ sind Testende-Abschlüsse. Sie bleiben in Netto, Kosten, Balance und tatsächlichem Gesamtergebnis, werden aber in der Analyse regulärer Zyklusstartzeiten getrennt. Dauer und natürliches späteres Ergebnis sind unbekannt. „Um letzten Zyklus bereinigt“ ist der Gewinnstand beim letzten regulären Abschluss davor, einschließlich aller bis dahin gebuchten Handelskosten. Ohne erkennbaren Testende-Abschluss wird kein Zyklus allein wegen seiner letzten Position entfernt. Die Original-Haltezeitstatistik umfasst weiterhin alle abgeschlossenen Trades.
