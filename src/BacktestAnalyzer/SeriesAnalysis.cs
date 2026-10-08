@@ -33,7 +33,8 @@ public static class SeriesAnalysis
         var all=ForReport(report);return all.Where(s=>s.End.HasValue&&(!report.AnalysisYear.HasValue||s.End.Value.Year==report.AnalysisYear)).ToList();
     }
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Report,DateTime[]> TestEndTimes=new();
-    public static bool TestEnd(Report report,TradingSeries cycle)=>cycle.End.HasValue&&(report.StrategyMode=="single"?report.Deals.Any(d=>d.Position==cycle.Position&&d.Symbol==cycle.Symbol&&d.Time==cycle.End&&d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)):TestEndTimes.GetValue(report,r=>r.Deals.Where(d=>d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)).Select(d=>d.Time).Distinct().ToArray()).Any(t=>t>=cycle.Start&&t<=cycle.End));
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Report,HashSet<(string Position,string Symbol,DateTime Time)>> ForcedTrades=new();
+    public static bool TestEnd(Report report,TradingSeries cycle)=>cycle.End.HasValue&&(report.StrategyMode=="single"?ForcedTrades.GetValue(report,q=>q.Deals.Where(d=>d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)).Select(d=>(d.Position,d.Symbol,d.Time)).ToHashSet()).Contains((cycle.Position,cycle.Symbol,cycle.End.Value)):TestEndTimes.GetValue(report,r=>r.Deals.Where(d=>d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)).Select(d=>d.Time).Distinct().ToArray()).Any(t=>t>=cycle.Start&&t<=cycle.End));
     public static List<TradingSeries> Regular(Report report)=>Selected(report).Where(c=>!TestEnd(report,c)).ToList();
     public static (DateTime? Time,decimal Profit,decimal Excluded) Adjusted(Report report)
     {
