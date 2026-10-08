@@ -19,5 +19,5 @@
     <Compile Include="../../src/BacktestAnalyzer/Localization.cs" Link="Localization.cs" />
     <PackageReference Include="SharpCompress" Version="0.50.4" />
     <PackageReference Include="HtmlAgilityPack" Version="1.13.0" />
-  </ItemGroup>
+  <Compile Include="../../src/BacktestAnalyzer/BasketExcursions.cs" Link="BasketExcursions.cs" /></ItemGroup>
 </Project>

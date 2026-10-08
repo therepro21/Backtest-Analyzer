@@ -17,6 +17,7 @@ public sealed class PdfCanvas(XGraphics g,PdfDocument doc,PdfPage page):ICanvas
     public void Rect(double x,double y,double w,double h,string fill){if(w>0&&h>0)g.DrawRectangle(new XSolidBrush(Color(fill)),x,y,w,h);}
     public void Line(double x1,double y1,double x2,double y2,string color,double width=1)=>g.DrawLine(new XPen(Color(color),width*.65),x1,y1,x2,y2);
     public void Text(string text,double x,double y,double size,string color,bool bold=false)=>g.DrawString(Localization.T(text),new XFont("Backtest UI",size,bold?XFontStyleEx.Bold:XFontStyleEx.Regular),new XSolidBrush(Color(color)),new XPoint(x,y+size));
+    public void AngledText(string text,double x,double y,double size,string color,double angle){var state=g.Save();var font=new XFont("Backtest UI",size);double w=g.MeasureString(Localization.T(text),font).Width;g.TranslateTransform(x,y);g.RotateTransform(angle);g.DrawString(Localization.T(text),font,new XSolidBrush(Color(color)),new XPoint(-w/2,size*.35));g.Restore(state);}
     public void VerticalText(string text,double x,double y,double size,string color){var state=g.Save();var font=new XFont("Backtest UI",size);string label=Localization.T(text);double width=g.MeasureString(label,font).Width;g.TranslateTransform(x,y);g.RotateTransform(-90);g.DrawString(label,font,new XSolidBrush(Color(color)),new XPoint(-width/2,size*.35));g.Restore(state);}
     public void Circle(double x,double y,double radius,string color,bool hollow=false){if(hollow)g.DrawEllipse(new XPen(Color(color)),x-radius,y-radius,radius*2,radius*2);else g.DrawEllipse(new XSolidBrush(Color(color)),x-radius,y-radius,radius*2,radius*2);}
 }
@@ -54,14 +55,14 @@ public static class PdfExport
 
         }
         string Short(string t,int len=80)=>t.Length>len?t[..(len-1)]+"…":t;
-        void Metric(PdfCanvas c,string label,string value,double x,double y,double width){c.Rect(x,y,width,label=="Längste Haltezeit"?64:46,palette.Surface);c.Text(label,x+10,y+5,8,palette.Muted);c.Text(value,x+10,y+18,13,palette.Ink,true);}
+        void Metric(PdfCanvas c,string label,string value,double x,double y,double width){c.Rect(x,y,width,58,palette.Surface);c.Text(label,x+10,y+5,8,palette.Muted);c.Text(value,x+10,y+18,12,palette.Ink,true);}
         void Right(PdfCanvas c,XGraphics g,string text,double x,double yy,double size=8,bool bold=false){c.Text(text,x-g.MeasureString(Localization.T(text),new XFont("Backtest UI",size,bold?XFontStyleEx.Bold:XFontStyleEx.Regular)).Width,yy,size,palette.Ink,bold);}
         void Headline(PdfCanvas c,double y,double width){double cell=(width-20)/3;Metric(c,"Durchschnitt",Stats.Duration(stats.Mean),24,y,cell);Metric(c,"Mittlere Haltezeit (50 %)",Stats.Duration(stats.Median),34+cell,y,cell);var detail=EventDetails.Longest(report,stats.Trades);Metric(c,"Längste Haltezeit",detail.Duration,44+cell*2,y,cell);TextLines(c,detail.Period+"\n"+detail.Prices,44+cell*2+10,y+33,cell-20,4,5);}
         void Chart(PdfCanvas c,ChartKind kind,double x,double y,double width,double height){ChartPainter.Draw(c,kind,report,stats.Trades,palette,x,y,width,height);}
         if(layout!="quick"&&sourceReport.ReportScope!="years")
         {
             var cover=NewPage("Backtestprofil / Datenqualität");double width=cover.Page.Width.Point;
-            cover.C.Text(Short(report.Strategy,30),30,110,15,palette.Ink,true);
+            cover.C.Text("EA: "+Short(report.Strategy,30),30,110,15,palette.Ink,true);
             TextLines(cover.C,DisplayFormat.DurationBasis(report)+". Nachtpause: "+(report.NightPauseStartMinute/60).ToString("00")+":00, "+report.NightPauseMinutes+" min; pauschale Annahme, Feiertage nicht berücksichtigt.",30,145,220,5,10);
             cover.C.Text("Abgeschlossene Trades: "+stats.Count.ToString("N0"),30,210,10,palette.Ink);
             cover.C.Text("Gehandeltes Einstiegsvolumen: "+stats.Trades.Sum(t=>t.Volume).ToString("N2")+" Lots",30,226,9,palette.Ink);
@@ -71,7 +72,7 @@ public static class PdfExport
             var coverAdjusted=SeriesAnalysis.Adjusted(report);
             cover.C.Text("Gesamtgewinn: "+report.Deals.Sum(d=>d.Net).ToString("N2")+" "+DisplayFormat.Currency(report),30,307,10,palette.Ink,true);
             if(coverAdjusted.Time.HasValue){cover.C.Text("Um letzten Zyklus bereinigt",30,329,8,palette.Muted);cover.C.Text(coverAdjusted.Profit.ToString("N2")+" "+DisplayFormat.Currency(report),30,341,12,palette.Ink,true);cover.C.Text($"Gesamtgewinn am {DisplayFormat.Time(coverAdjusted.Time.Value)}",30,359,8,palette.Muted);cover.C.Text($"Testende-Zyklus: {coverAdjusted.Excluded:N2} {DisplayFormat.Currency(report)}",30,374,8,palette.Negative);}
-            cover.C.Rect(width-290,105,260,290,dark?"#20354F":"#E7F2FF");
+            cover.C.Rect(width-290,105,266,290,dark?"#20354F":"#E7F2FF");
             cover.C.Text("TESTPROFIL · Original / Cache",width-278,116,11,palette.Ink,true);
             string Value(params string[] aliases){string value=report.Find(aliases);return value.Length>0?value:"nicht exportiert";}
             string IntegerValue(params string[] aliases){string value=Value(aliases);try{return Parser.Number(value).ToString("N0");}catch(FormatException){return value;}}
@@ -100,7 +101,7 @@ public static class PdfExport
         else
         {
             var a=NewPage("Detailanalyse / Überblick");double width=a.Page.Width.Point;Headline(a.C,101,width-48);
-            a.C.Text(Short(report.Strategy),30,179,17,palette.Ink,true);TextLines(a.C,scope,30,210,width-60,3);
+            a.C.Text("EA: "+Short(report.Strategy),30,179,17,palette.Ink,true);TextLines(a.C,scope,30,210,width-60,3);
             Chart(a.C,ChartKind.Balance,24,261,width-48,340);
             a.C.Text("Native PDF-Tooltips ohne JavaScript · Zeitpunkt und Kontodaten je Zeitfenster.",30,620,5.5,palette.Muted);
             a.C.Text("Die statische Kurve bleibt in anderen PDF-Viewern und beim Drucken sichtbar.",30,630,5.5,palette.Muted);
@@ -118,8 +119,8 @@ public static class PdfExport
             }
             if(report.EquityPoints.Count>0&&report.DrawdownEnabled){
                 a=NewPage("Drawdownereignisse / Top "+report.DrawdownCount);Chart(a.C,ChartKind.Balance,24,103,width-48,245);
-                var events=EventDetails.Drawdowns(report);double eventY=358;
-                for(int ei=0;ei<events.Count;ei++){if(eventY+78>755){a=NewPage("Drawdownereignisse / Fortsetzung");eventY=108;}var ev=events[ei];a.C.Text("*"+(ei+1)+" Equity-DD · "+ev.Percent.ToString("N2")+" % / "+DisplayFormat.Money(ev.Money,report),30,eventY,ei==0?12:9,palette.Ink,true);double lineY=eventY+17;foreach(var line in EventDetails.Describe(report,ev).Split('\n')){TextLines(a.C,line,30,lineY,width-60,2,6);lineY+=12;}eventY+=76;}
+                var events=EventDetails.Drawdowns(report);
+                for(int batch=0;batch<events.Count;batch+=10){if(batch>0)a=NewPage("Drawdownereignisse / Fortsetzung");double baseY=batch==0?359:108;for(int offset=0;offset<Math.Min(10,events.Count-batch);offset++){int ei=batch+offset;double ex=offset<5?30:width/2+6,ey=baseY+(offset%5)*77;var ev=events[ei];a.C.Text("*"+(ei+1)+" Equity-DD · "+ev.Percent.ToString("N2")+" % / "+DisplayFormat.Money(ev.Money,report),ex,ey,8,palette.Ink,true);TextLines(a.C,EventDetails.Describe(report,ev),ex,ey+13,width/2-42,9,5.4);}}
                 TextLines(a.C,"Getrennte Ereignisse · Rang nach prozentualem DD · Kurse: abgeschlossene H1-Kerzen, keine Tickkurse.",30,761,width-60,2,5.5);
             }
             a=NewPage("Haltezeiten / Verteilung, Abschluss und Vergleich");Chart(a.C,ChartKind.Histogram,24,103,width-48,230);Chart(a.C,ChartKind.Ecdf,24,345,width-48,225);Chart(a.C,ChartKind.Boxplot,24,582,width-48,182);
@@ -137,9 +138,9 @@ public static class PdfExport
 
             var series=SeriesAnalysis.Regular(report);var longs=series.Where(s=>ReportOptions.CycleSeconds(report,s)>report.LongSeriesHours*3600).ToList();
             a=NewPage("Lange Handelszyklen / Top 10 und Datenprüfung");
-            a.C.Text("Wochentag",30,110,9,palette.Muted,true);a.C.Text("Stunde",118,110,9,palette.Muted,true);a.C.Text("Lange / Starts",245,110,9,palette.Muted,true);a.C.Text("Anteil > "+report.LongSeriesHours+" h",350,110,9,palette.Muted,true);
-            var ranking=series.GroupBy(c=>new{Day=((int)c.Start.DayOfWeek+6)%7,Hour=c.Start.Hour}).Select(g=>new{g.Key.Day,g.Key.Hour,Total=g.Count(),Long=g.Count(c=>ReportOptions.CycleSeconds(report,c)>report.LongSeriesHours*3600)}).Where(g=>g.Long>0).OrderByDescending(g=>g.Long/(double)g.Total).ThenByDescending(g=>g.Total).Take(10).ToList();
-            int row=0;foreach(var v in ranking){double ry=138+row++*18;a.C.Text(new[]{"Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"}[v.Day] ,30,ry,9,palette.Ink);a.C.Text(DisplayFormat.Hour(v.Hour)+"–"+DisplayFormat.Hour(v.Hour+1),118,ry,9,palette.Ink);a.C.Text($"{v.Long:N0} / {v.Total:N0}",245,ry,9,palette.Ink,true);a.C.Text($"{100d*v.Long/v.Total:N1} %"+$" ({v.Long} von {v.Total})",350,ry,10,palette.Ink,true);}
+            a.C.Text("Wochentag",30,110,9,palette.Muted,true);a.C.Text("Stunde",113,110,9,palette.Muted,true);a.C.Text("Lange / Starts",220,110,9,palette.Muted,true);a.C.Text("Anteil > "+report.LongSeriesHours+" h",320,110,9,palette.Muted,true);a.C.Text("> 24 h",452,110,9,palette.Muted,true);
+            var ranking=series.GroupBy(c=>new{Day=((int)c.Start.DayOfWeek+6)%7,Hour=c.Start.Hour}).Select(g=>new{g.Key.Day,g.Key.Hour,Total=g.Count(),Over24=g.Count(c=>ReportOptions.CycleSeconds(report,c)>24*3600),Long=g.Count(c=>ReportOptions.CycleSeconds(report,c)>report.LongSeriesHours*3600)}).Where(g=>g.Long>0).OrderByDescending(g=>g.Long/(double)g.Total).ThenByDescending(g=>g.Total).Take(10).ToList();
+            int row=0;foreach(var v in ranking){double ry=138+row++*18;a.C.Text(new[]{"Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"}[v.Day] ,30,ry,9,palette.Ink);a.C.Text(DisplayFormat.Hour(v.Hour)+"–"+DisplayFormat.Hour(v.Hour+1),113,ry,9,palette.Ink);a.C.Text($"{v.Long:N0} / {v.Total:N0}",220,ry,9,palette.Ink,true);a.C.Text($"{100d*v.Long/v.Total:N1} %"+$" ({v.Long} von {v.Total})",320,ry,8,palette.Ink,true);a.C.Text($"{v.Over24} / {v.Total} · {100d*v.Over24/v.Total:N1} %",452,ry,8,palette.Ink);}
             TextLines(a.C,$"Datenbasis: {series.Count:N0} regulär abgeschlossene Zyklen, davon {longs.Count:N0} über {report.LongSeriesHours} Stunden ohne Sa/So. Sortierung nach Anteil langer Zyklen; bei Gleichstand nach Zahl der Starts. Unter 20 Starts: kleine Fallzahl, keine belastbare Risikoprognose. Testende-Zyklen sind separat und ausgeschlossen.",30,325,width-60,3,6);
             double yy=365;
             a.C.Text("Datenprüfung / eigene Berechnungen",30,yy,10,palette.Ink,true);yy+=19;
@@ -162,31 +163,32 @@ public static class PdfExport
                 ("Netto aus gebuchten Deals",report.Deals.Sum(d=>d.Net).ToString("N2")+" "+currency),
                 ("Brutto / Kommission / Swap / Fee",$"{report.Deals.Sum(d=>d.Profit):N2} / {report.Deals.Sum(d=>d.Commission):N2} / {report.Deals.Sum(d=>d.Swap):N2} / "+(report.AvailableColumns.Contains("fee")?report.Deals.Sum(d=>d.Fee).ToString("N2"):"nicht exportiert")),
                 ("Rohbuchungs-Balance-DD in Prozent (Prüfwert)",$"{ddPercent.Percent:N2}% / {ddPercent.Money:N2} {currency}"),
-                ("Zeitpunkt / Bezugs-Höchststand",$"{DisplayFormat.Time(ddPercent.Time)} / {ddPercent.Peak:N2}"),
+                ("Zeitpunkt / Bezugs-Höchststand",$"{DisplayFormat.Time(ddPercent.Time)} / {ddPercent.Peak:N2} {currency}"),
                 ("Rohbuchungs-Balance-DD in Geld (Prüfwert)",$"{ddMoney.Money:N2} {currency} / {ddMoney.Percent:N2}%"),
-                ("Zeitpunkt / Bezugs-Höchststand",$"{DisplayFormat.Time(ddMoney.Time)} / {ddMoney.Peak:N2}"),
+                ("Zeitpunkt / Bezugs-Höchststand",$"{DisplayFormat.Time(ddMoney.Time)} / {ddMoney.Peak:N2} {currency}"),
                 ("Trade-Netto der Schlussjahr-Kohorte",stats.Net.ToString("N2")+" "+currency),
                 ("Gewinner / Verlierer / Null",$"{stats.Wins:N0} / {stats.Losses:N0} / {stats.Count-stats.Wins-stats.Losses:N0}"),
                 ("Trefferquote",stats.Count>0?(100d*stats.Wins/stats.Count).ToString("N2")+"%":"nicht definiert"),
-                ("Erwartetes Netto je Trade",stats.Count>0?(stats.Net/stats.Count).ToString("N2"):"nicht definiert"),
-                ("Bestes / schlechtestes Trade",stats.Count>0?$"{stats.Trades.Max(t=>t.Net):N2} / {stats.Trades.Min(t=>t.Net):N2}":"keine"),
+                ("Erwartetes Netto je Trade",stats.Count>0?DisplayFormat.Money(stats.Net/stats.Count,report):"nicht definiert"),
+                ("Bestes / schlechtestes Trade",stats.Count>0?DisplayFormat.Money(stats.Trades.Max(t=>t.Net),report)+" / "+DisplayFormat.Money(stats.Trades.Min(t=>t.Net),report):"keine"),
                 ("Long / Short Trades",$"{stats.Trades.Count(t=>t.Side=="buy"):N0} / {stats.Trades.Count(t=>t.Side=="sell"):N0}")};
             var adjusted=SeriesAnalysis.Adjusted(report);
             a.C.Text("Gesamtgewinn · tatsächliches Ergebnis",30,yy,9,palette.Muted);a.C.Text(report.Deals.Sum(d=>d.Net).ToString("N2")+" "+currency,30,yy+13,12,palette.Ink,true);yy+=39;
             if(adjusted.Time.HasValue){a.C.Text("Um letzten Zyklus bereinigt",30,yy,9,palette.Muted);a.C.Text($"Gesamtgewinn am {DisplayFormat.Time(adjusted.Time.Value)}: {adjusted.Profit:N2} {currency}",30,yy+13,10,palette.Ink,true);yy+=38;a.C.Text($"Testende-Zyklus separat: {adjusted.Excluded:N2} {currency}",30,yy,9,palette.Negative,true);yy+=18;}else{a.C.Text("Keine erkennbare Testende-Schließung in diesem Abschnitt.",30,yy,8,palette.Muted);yy+=20;}
             var cards=accountMetrics.Where(m=>!m.Item1.StartsWith("Brutto / ")).ToList();cards.InsertRange(3,new[]{("Brutto aus Deals",report.Deals.Sum(d=>d.Profit).ToString("N2")+" "+currency),("Kommission",report.Deals.Sum(d=>d.Commission).ToString("N2")+" "+currency),("Swap",report.Deals.Sum(d=>d.Swap).ToString("N2")+" "+currency),("Separate Gebühren",report.AvailableColumns.Contains("fee")?report.Deals.Sum(d=>d.Fee).ToString("N2")+" "+currency:"nicht exportiert")});
-            for(int mi=0;mi<cards.Count;mi++){double xx=30+(mi%2)*(width-60)/2,cy=yy+(mi/2)*53;var m=cards[mi];a.C.Rect(xx,cy,(width-72)/2,45,palette.Surface);a.C.Text(Short(m.Item1,47),xx+8,cy+5,7,palette.Muted);a.C.Text(m.Item2+(!m.Item2.Contains(currency)&&((m.Item1.Contains("Netto")||m.Item1.Contains("schlechtestes")||m.Item1.Contains("Höchststand")))?" "+currency:""),xx+8,cy+20,9,palette.Ink,true);}
+            for(int mi=0;mi<cards.Count;mi++){double xx=24+(mi%2)*(width-36)/2,cy=yy+(mi/2)*53;var m=cards[mi];a.C.Rect(xx,cy,(width-60)/2,45,palette.Surface);a.C.Text(Short(m.Item1,47),xx+8,cy+5,7,palette.Muted);a.C.Text(m.Item2+(!m.Item2.Contains(currency)&&((m.Item1.Contains("Netto")||m.Item1.Contains("schlechtestes")||m.Item1.Contains("Höchststand")))?" "+currency:""),xx+8,cy+20,9,palette.Ink,true);}
             TextLines(a.C,"Originalkennzahlen bleiben separat erhalten. Buchungsjahr und Schlussjahr werden unterschieden; echte Kontobuchungen werden nicht entfernt.",30,yy+Math.Ceiling(cards.Count/2d)*53+10,width-60,3,6);
             a=NewPage("Monatsübersicht / gebuchte Deals");yy=111;
             void MonthHeader(){a.C.Text("Monat",30,yy,8,palette.Muted,true);Right(a.C,a.G,"Deals",190,yy,8,true);Right(a.C,a.G,"Lots (Einstieg)",270,yy,8,true);Right(a.C,a.G,"Netto ("+currency+")",370,yy,8,true);Right(a.C,a.G,"Komm. ("+currency+")",460,yy,8,true);Right(a.C,a.G,"Swap ("+currency+")",565,yy,8,true);yy+=20;}
             MonthHeader();
             foreach(var yearGroup in report.Deals.GroupBy(d=>d.Time.Year).OrderBy(g=>g.Key)){
-                if(yy+yearGroup.Select(d=>d.Time.Month).Distinct().Count()*19+38>730){a=NewPage("Monatsübersicht / Fortsetzung");yy=111;MonthHeader();}
-                foreach(var month in yearGroup.GroupBy(d=>d.Time.Month).OrderBy(g=>g.Key)){if(yy>714){a=NewPage("Monatsübersicht / Fortsetzung");yy=111;MonthHeader();}var dt=new DateTime(yearGroup.Key,month.Key,1);a.C.Text(dt.ToString("yyyy-MM")+" "+dt.ToString("MMMM",Localization.Culture),30,yy,8,palette.Ink);Right(a.C,a.G,month.Count().ToString("N0"),190,yy);Right(a.C,a.G,month.Where(d=>d.Entry is "in" or "inout").Sum(d=>d.Volume).ToString("N2"),270,yy);Right(a.C,a.G,DisplayFormat.Money(month.Sum(d=>d.Net),report),370,yy);Right(a.C,a.G,DisplayFormat.Money(month.Sum(d=>d.Commission),report),460,yy);Right(a.C,a.G,DisplayFormat.Money(month.Sum(d=>d.Swap),report),565,yy);yy+=19;}
-                if(yy>704){a=NewPage("Monatsübersicht / Jahressumme");yy=111;MonthHeader();}a.C.Line(30,yy-4,width-30,yy-4,palette.Positive,.7);a.C.Text("Summe "+yearGroup.Key,30,yy,9,palette.Ink,true);Right(a.C,a.G,yearGroup.Count().ToString("N0"),190,yy,8,true);Right(a.C,a.G,yearGroup.Where(d=>d.Entry is "in" or "inout").Sum(d=>d.Volume).ToString("N2"),270,yy,8,true);Right(a.C,a.G,DisplayFormat.Money(yearGroup.Sum(d=>d.Net),report),370,yy,8,true);Right(a.C,a.G,DisplayFormat.Money(yearGroup.Sum(d=>d.Commission),report),460,yy,8,true);Right(a.C,a.G,DisplayFormat.Money(yearGroup.Sum(d=>d.Swap),report),565,yy,8,true);var annual=YearAnalysis.ForYear(report,yearGroup.Key);var annualDd=AccountCurves.EquityDrawdowns(annual);a.C.Text(annualDd.Count>0?$"(Equity-DD Max: {annualDd.Max(d=>d.Percent):N2} %)":"(Equity-DD nicht verfügbar)",30,yy+15,6,palette.Muted);yy+=35;
+                if(yy+yearGroup.Select(d=>d.Time.Month).Distinct().Count()*21+49>752){a=NewPage("Monatsübersicht / Fortsetzung");yy=111;MonthHeader();}
+                foreach(var month in yearGroup.GroupBy(d=>d.Time.Month).OrderBy(g=>g.Key)){if(yy>714){a=NewPage("Monatsübersicht / Fortsetzung");yy=111;MonthHeader();}var dt=new DateTime(yearGroup.Key,month.Key,1);a.C.Text(dt.ToString("yyyy-MM")+" "+dt.ToString("MMMM",Localization.Culture),30,yy,8,palette.Ink);Right(a.C,a.G,month.Count().ToString("N0"),190,yy);Right(a.C,a.G,month.Where(d=>d.Entry is "in" or "inout").Sum(d=>d.Volume).ToString("N2"),270,yy);Right(a.C,a.G,DisplayFormat.Money(month.Sum(d=>d.Net),report),370,yy);Right(a.C,a.G,DisplayFormat.Money(month.Sum(d=>d.Commission),report),460,yy);Right(a.C,a.G,DisplayFormat.Money(month.Sum(d=>d.Swap),report),565,yy);yy+=21;}
+                if(yy>704){a=NewPage("Monatsübersicht / Jahressumme");yy=111;MonthHeader();}a.C.Line(30,yy-4,width-30,yy-4,palette.Positive,.7);a.C.Text("Summe "+yearGroup.Key,30,yy,9,palette.Ink,true);Right(a.C,a.G,yearGroup.Count().ToString("N0"),190,yy,8,true);Right(a.C,a.G,yearGroup.Where(d=>d.Entry is "in" or "inout").Sum(d=>d.Volume).ToString("N2"),270,yy,8,true);Right(a.C,a.G,DisplayFormat.Money(yearGroup.Sum(d=>d.Net),report),370,yy,8,true);Right(a.C,a.G,DisplayFormat.Money(yearGroup.Sum(d=>d.Commission),report),460,yy,8,true);Right(a.C,a.G,DisplayFormat.Money(yearGroup.Sum(d=>d.Swap),report),565,yy,8,true);var annual=YearAnalysis.ForYear(report,yearGroup.Key);var annualDd=AccountCurves.EquityDrawdowns(annual);a.C.Text(annualDd.Count>0?$"(Equity-DD Max: {annualDd.Max(d=>d.Percent):N2} %)":"(Equity-DD nicht verfügbar)",30,yy+15,6,palette.Muted);yy+=49;
             }
             TextLines(a.C,"Geldspalten in "+currency+". Lots zählen eröffnendes Volumen; Schließungen werden nicht doppelt gezählt. Geschlossene Wochentage sind in Tageskategorien ausgeblendet, vorhandene Buchungen bleiben für den Kontoabgleich erhalten.",30,yy+10,width-60,3,6);
-            for(int ai=0;ai<AdvancedPainter.Kinds.Length;){int take=AdvancedPainter.Kinds.Length-ai==4?2:Math.Min(3,AdvancedPainter.Kinds.Length-ai);a=NewPage("Erweiterte Analyse / "+AdvancedPainter.Title(AdvancedPainter.Kinds[ai]));for(int aj=ai;aj<ai+take;aj++)Chart(a.C,AdvancedPainter.Kinds[aj],24,103+(aj-ai)*224,width-48,212);ai+=take;}
+            var availableKinds=AdvancedPainter.Kinds.Where(k=>AdvancedAnalysis.Panel(report,k).Values.Count>0&&(k!=ChartKind.Correlation||SymbolAnalysis.Symbols(report).Count>1)).ToArray();
+            for(int ai=0;ai<availableKinds.Length;){int take=availableKinds.Length-ai==4?2:Math.Min(3,availableKinds.Length-ai);a=NewPage("Erweiterte Analyse / "+AdvancedPainter.Title(availableKinds[ai]));for(int aj=ai;aj<ai+take;aj++)Chart(a.C,availableKinds[aj],24,103+(aj-ai)*224,width-48,212);ai+=take;}
             if(appendix)
             {
                 var sorted=stats.Trades.OrderByDescending(t=>t.Seconds).ToList();for(int start=0;start<sorted.Count;start+=25){a=NewPage("Trade-Anhang / nach Haltezeit sortiert");a.C.Text("ID / Symbol",30,103,10,palette.Muted,true);a.C.Text("Einstieg / Vollschluss",150,103,10,palette.Muted,true);a.C.Text("Haltezeit / Netto",340,103,10,palette.Muted,true);yy=132;

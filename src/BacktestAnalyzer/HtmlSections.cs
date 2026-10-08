@@ -14,6 +14,7 @@ public sealed class SvgCanvas:ICanvas
     public void Rect(double x,double y,double width,double height,string fill){if(width>0&&height>0)Content.Append($"<rect x='{N(x)}' y='{N(y)}' width='{N(width)}' height='{N(height)}' fill='{C(fill)}'/>");}
     public void Line(double x1,double y1,double x2,double y2,string color,double width=1)=>Content.Append($"<path d='M{N(x1)} {N(y1)}L{N(x2)} {N(y2)}' fill='none' stroke='{C(color)}' stroke-width='{N(width)}'/>");
     public void Text(string text,double x,double y,double size,string color,bool bold=false)=>Content.Append($"<text x='{N(x)}' y='{N(y+size)}' font-size='{N(size)}' fill='{C(color)}' font-weight='{(bold?600:400)}'>{E(Localization.T(text))}</text>");
+    public void AngledText(string text,double x,double y,double size,string color,double angle)=>Content.Append($"<text x='{N(x)}' y='{N(y)}' transform='rotate({N(angle)} {N(x)} {N(y)})' text-anchor='middle' dominant-baseline='middle' font-size='{N(size)}' fill='{C(color)}'>{E(Localization.T(text))}</text>");
     public void VerticalText(string text,double x,double y,double size,string color)=>Content.Append($"<text x='{N(x)}' y='{N(y)}' transform='rotate(-90 {N(x)} {N(y)})' text-anchor='middle' dominant-baseline='middle' font-size='{N(size)}' fill='{C(color)}'>{E(Localization.T(text))}</text>");
     public void Circle(double x,double y,double radius,string color,bool hollow=false)=>Content.Append($"<circle cx='{N(x)}' cy='{N(y)}' r='{N(radius)}' fill='{(hollow?"none":C(color))}' stroke='{C(color)}'/>");
 }

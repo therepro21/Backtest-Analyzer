@@ -2,6 +2,7 @@ namespace BacktestAnalyzer;
 
 public sealed record TradingSeries(DateTime Start,DateTime? End,decimal Net,int Entries,decimal MaxGrossLots)
 {
+    public string Position {get;init;}="";public string Symbol {get;init;}="";
     public double CalendarSeconds=>End.HasValue?(End.Value-Start).TotalSeconds:0;
     public double WeekdaySeconds=>Stats.HoldingSeconds(new Trade{Open=Start,Close=End},true,false,false,0);
 }
@@ -32,7 +33,7 @@ public static class SeriesAnalysis
         var all=ForReport(report);return all.Where(s=>s.End.HasValue&&(!report.AnalysisYear.HasValue||s.End.Value.Year==report.AnalysisYear)).ToList();
     }
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Report,DateTime[]> TestEndTimes=new();
-    public static bool TestEnd(Report report,TradingSeries cycle)=>cycle.End.HasValue&&TestEndTimes.GetValue(report,r=>r.Deals.Where(d=>d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)).Select(d=>d.Time).Distinct().ToArray()).Any(t=>t>=cycle.Start&&t<=cycle.End);
+    public static bool TestEnd(Report report,TradingSeries cycle)=>cycle.End.HasValue&&(report.StrategyMode=="single"?report.Deals.Any(d=>d.Position==cycle.Position&&d.Symbol==cycle.Symbol&&d.Time==cycle.End&&d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)):TestEndTimes.GetValue(report,r=>r.Deals.Where(d=>d.Comment.Contains("end of test",StringComparison.OrdinalIgnoreCase)).Select(d=>d.Time).Distinct().ToArray()).Any(t=>t>=cycle.Start&&t<=cycle.End));
     public static List<TradingSeries> Regular(Report report)=>Selected(report).Where(c=>!TestEnd(report,c)).ToList();
     public static (DateTime? Time,decimal Profit,decimal Excluded) Adjusted(Report report)
     {
@@ -43,7 +44,7 @@ public static class SeriesAnalysis
     }
     public static List<TradingSeries> ForReport(Report report)
     {
-        if(report.StrategyMode=="single")return report.Trades.OrderBy(t=>t.Open).Select(t=>new TradingSeries(t.Open,t.Close,t.Net,1,t.Volume)).ToList();
+        if(report.StrategyMode=="single")return report.Trades.OrderBy(t=>t.Open).Select(t=>new TradingSeries(t.Open,t.Close,t.Net,1,t.Volume){Position=t.Position,Symbol=t.Symbol}).ToList();
         if(report.Series!=null)return report.Series;
         try{return report.Series=Build(report.Deals);}
         catch(InvalidDataException ex){string warning="Serienauswertung nicht verfügbar: "+ex.Message;if(!report.Warnings.Contains(warning))report.Warnings.Add(warning);return report.Series=new();}
