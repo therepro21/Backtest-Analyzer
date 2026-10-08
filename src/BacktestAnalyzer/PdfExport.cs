@@ -58,7 +58,7 @@ public static class PdfExport
         }
         void TextLines(PdfCanvas c,string text,double x,double y,double width,int max=20,double size=6)
         {
-            c.Note(text,x,y,palette.Muted);
+            if(!notes.Texts.Contains(Localization.T(text)))notes.Texts.Add(Localization.T(text));
         }
         void DataLines(PdfCanvas c,string text,double x,double y,double width,double size=7,double leading=9)
         {
@@ -131,8 +131,8 @@ public static class PdfExport
             if(report.EquityPoints.Count>0&&report.DrawdownEnabled){
                 a=NewPage("Drawdownereignisse / Top "+report.DrawdownCount);
                 var events=EventDetails.Drawdowns(report);
-                for(int batch=0;batch<events.Count;batch+=10){if(batch>0)a=NewPage("Drawdownereignisse / Fortsetzung");double baseY=108;for(int offset=0;offset<Math.Min(10,events.Count-batch);offset++){int ei=batch+offset;double ex=offset<5?30:width/2+6,ey=baseY+(offset%5)*128;var ev=events[ei];a.C.Text("*"+(ei+1)+" Equity-DD · "+ev.Percent.ToString("N2")+" % / "+DisplayFormat.Money(ev.Money,report),ex,ey,10,palette.Ink,true);DataLines(a.C,EventDetails.Describe(report,ev),ex,ey+18,width/2-42,7.8,11);}}
-                a.C.Note("Getrennte Ereignisse · Rang nach prozentualem DD · Kurse: abgeschlossene H1-Kerzen, keine Tickkurse.",width/2+6,750,palette.Muted);
+                for(int batch=0;batch<events.Count;batch+=10){if(batch>0)a=NewPage("Drawdownereignisse / Fortsetzung");double baseY=108;for(int offset=0;offset<Math.Min(10,events.Count-batch);offset++){int ei=batch+offset;double ex=offset<5?30:width/2+6,ey=baseY+(offset%5)*128;var ev=events[ei];a.C.Text("*"+(ei+1)+" Equity-DD · "+ev.Percent.ToString("N2")+" % / "+DisplayFormat.Money(ev.Money,report),ex,ey,10,palette.Ink,true);int lineIndex=0;foreach(var line in EventDetails.Describe(report,ev).Split('\n')){if(a.C.Measure(line,7.8)>width/2-42)throw new InvalidDataException("DD-Zeile überschreitet Spaltenbreite: "+line);a.C.Text(line,ex,ey+18+lineIndex++*13,7.8,palette.Ink);}}}
+                a.C.Note("Getrennte Ereignisse · Rang nach prozentualem DD · M1/M5 bezeichnet den letzten abgeschlossenen Kerzenschluss mit seiner Uhrzeit; Ausführung bezeichnet einen exportierten Dealpreis. Kein exakter Tickkurs wird behauptet.",width/2+6,750,palette.Muted);
             }
             a=NewPage("Haltezeiten / Verteilung, Abschluss und Vergleich");Chart(a.C,ChartKind.Histogram,24,103,width-48,230);Chart(a.C,ChartKind.Ecdf,24,345,width-48,225);Chart(a.C,ChartKind.Boxplot,24,582,width-48,182);
             a=NewPage("Zusammenhang / Ergebnis und Zeit");Chart(a.C,ChartKind.Scatter,24,105,width-48,300);Chart(a.C,ChartKind.Monthly,24,423,width-48,285);
@@ -163,8 +163,7 @@ public static class PdfExport
             a.C.Text("Originalangaben aus MetaTrader (nicht neu berechnet)",30,yy,7,palette.Ink,true);yy+=18;
             var original=(report.AnalysisYear.HasValue?new Dictionary<string,string>():report.Metadata).Where(m=>Parser.Key(m.Key).Contains("halte")||Parser.Key(m.Key).Contains("holding")||Parser.Key(m.Key).Contains("equity")||Parser.Key(m.Key).Contains("sharpe")||Parser.Key(m.Key).Contains("quality")||Parser.Key(m.Key).Contains("qualitat")).Take(5);
             foreach(var raw in original){var m=new KeyValuePair<string,string>(raw.Key,DisplayFormat.Metadata(raw.Key,raw.Value,report));a.C.Text(Short(m.Key,48),30,yy,9,palette.Muted);a.C.Text(Short(m.Value,35),330,yy,9,palette.Ink);yy+=15;}
-            yy+=12;a.C.Text("Importhinweise",30,yy,7,palette.Ink,true);yy+=16;
-            foreach(var warning in report.Warnings.Distinct().Take(3)){TextLines(a.C,warning,30,yy,width-60,4,6);yy+=Math.Min(4,1+(int)Math.Ceiling(warning.Length*3/(width-60)))*7+2;if(yy>746)break;}
+            // Import diagnostics belong exclusively to the final help page.
             a=NewPage("Kontoergebnis / Kosten und Risiko");yy=110;
             string currency=DisplayFormat.Currency(report);
             var ddPercent=YearAnalysis.MaxDrawdown(report,true);var ddMoney=YearAnalysis.MaxDrawdown(report,false);
@@ -263,16 +262,20 @@ public static class PdfExport
             }
         }
         var sourceFiles=new List<string>{sourceReport.Source};var folder=Path.GetDirectoryName(sourceReport.Source)!;var stem=Path.GetFileNameWithoutExtension(sourceReport.Source);if(Directory.Exists(folder))sourceFiles.AddRange(Directory.EnumerateFiles(folder,stem+"*",SearchOption.TopDirectoryOnly).Where(f=>new[]{".html",".xlsx",".png"}.Contains(Path.GetExtension(f).ToLowerInvariant())));
-        var attachmentPage=NewPage("Originaldateien / vollständige Historie und Originalgrafiken");double ay=115;attachmentPage.C.Text("Vollständige Originaldateien im PDF enthalten",30,ay,14,palette.Ink,true);ay+=30;foreach(var f in sourceFiles.Distinct().Where(File.Exists)){attachmentPage.C.Text(Path.GetFileName(f),30,ay,9,palette.Ink);ay+=22;}TextLines(attachmentPage.C,"In Acrobat: Anhänge öffnen. Die Originaldateien enthalten sämtliche Order-/Deal-Zeilen, Originalgrafiken und Angaben unverändert. Neu gestaltete Tabellen und Diagramme stehen im Bericht; die Anhänge sichern die vollständige Originalinformation.",30,ay+15,535,6,8);
         PdfAttachments.Add(doc,sourceFiles);
-        if(layout!="quick"){
-         var sections=HelpContent.Sections(sourceReport);sections.Add((Localization.English?"Import diagnostics":"Importprüfung",string.Join("\n",sourceReport.Warnings.Distinct())));
+        {
+         var sections=HelpContent.Sections(sourceReport);
+         sections.Add((Localization.English?"Embedded originals":"Eingebettete Originaldateien",string.Join(" · ",sourceFiles.Distinct().Where(File.Exists).Select(Path.GetFileName))));
+         sections.Add((Localization.English?"Import diagnostics":"Importhinweise",string.Join("\n",sourceReport.Warnings.Distinct())));
          var explanatory=notes.Texts.ToList();for(int n=0;n<explanatory.Count;n++)sections.Add(("*"+(n+1),explanatory[n]));
-         var targets=new Dictionary<int,(int Page,double X,double Y)>();var help=NewPage("Hilfe und Erklärung");int column=0;double hy=108,hx=30,cw=(help.Page.Width.Point-72)/2;
-         foreach(var section in sections){var lines=new List<string>();foreach(var paragraph in section.Body.Split('\n')){string line="";foreach(var word in paragraph.Split(' ')){var next=line.Length>0?line+" "+word:word;if(help.C.Measure(next,4.8)>cw&&line.Length>0){lines.Add(line);line=word;}else line=next;}if(line.Length>0)lines.Add(line);}
-          double needed=19+lines.Count*6.5;if(hy+needed>765){column++;hy=108;if(column==2){help=NewPage("Hilfe und Erklärung / Fortsetzung");column=0;}hx=30+column*(cw+12);}
+         var targets=new Dictionary<int,(int Page,double X,double Y)>();var help=NewPage("Hilfe und Erklärung");double cw=(help.Page.Width.Point-72)/2;
+         // Exactly one two-column appendix, with measured wrapping and an adaptive small font.
+         double font=4.5,leading=5.25;List<(string Title,List<string> Lines)> wrapped=new();
+         for(;;){wrapped.Clear();foreach(var section in sections){var lines=new List<string>();foreach(var paragraph in section.Body.Split('\n')){string line="";foreach(var word in paragraph.Split(' ')){var next=line.Length>0?line+" "+word:word;if(help.C.Measure(next,font)>cw&&line.Length>0){lines.Add(line);line=word;}else line=next;}if(line.Length>0)lines.Add(line);}if(lines.Count>0)wrapped.Add((section.Title,lines));}
+          double needed=wrapped.Sum(q=>leading*(q.Lines.Count+1)+3);double capacity=2*(765-108);if(needed<=capacity-40)break;font-=.1;leading=font+ .65;if(font<3.5)throw new InvalidDataException("Hilfeseite passt nicht vollständig auf eine Seite.");}
+         int column=0;double hy=108,hx=30;foreach(var section in wrapped){double needed=leading*(section.Lines.Count+1)+3;if(hy+needed>765){column++;hy=108;hx=30+column*(cw+12);}if(column>1)throw new InvalidDataException("Hilfeseite überschreitet zwei Spalten.");
           if(section.Title.StartsWith("*")&&int.TryParse(section.Title[1..],out int number))targets[number]=(doc.PageCount,hx,hy);
-          help.C.Text(section.Title,hx,hy+4,5.2,palette.Ink,true);hy+=16;foreach(var line in lines){help.C.Text(line,hx,hy,4.8,palette.Muted);hy+=6.5;}hy+=7;
+          help.C.Text(section.Title,hx,hy,font+.25,palette.Ink,true);hy+=leading;foreach(var line in section.Lines){help.C.Text(line,hx,hy,font,palette.Muted);hy+=leading;}hy+=3;
          }
          foreach(var link in notes.Links)if(targets.TryGetValue(link.Number,out var target))link.Page.AddDocumentLink(new PdfRectangle(new XRect(link.X,link.Page.Height.Point-link.Y-9,18,9)),target.Page,new XPoint(target.X,doc.Pages[target.Page-1].Height.Point-target.Y));
         }
@@ -285,7 +288,7 @@ public static class PdfExport
             string legal="Jegliche Haftung vollständig ausgeschlossen · Keine Gewähr für Vollständigkeit und Richtigkeit · Berichte/Analysen können Fehler enthalten · Keine Verbindung zu MetaQuotes · MetaTrader: Marken/Urheberrechte MetaQuotes Ltd";
             double legalWidth=page.Graphics.MeasureString(legal,new XFont("Backtest UI",4,XFontStyleEx.Bold)).Width;
             page.Canvas.Text(legal,(width-legalWidth)/2,height-22,4,palette.Muted,true);
-            page.Canvas.Text($"{i+1} / {pages.Count}",width-55,height-48,7,palette.Muted);
+            page.Canvas.RightText($"{i+1} / {pages.Count}",width-24,height-35.75,7,palette.Muted);
             page.Page.AddWebLink(new PdfRectangle(new XRect((width-footerWidth)/2,25,footerWidth,11)),Repository);page.Graphics.Dispose();
         }
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);doc.Save(path);

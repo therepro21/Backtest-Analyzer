@@ -19,6 +19,7 @@ public interface ICanvas
     void AngledText(string text,double x,double y,double size,string color,double angle)=>VerticalText(text,x,y,size,color);
     void Note(string text,double x,double y,string color)=>Hover(x,y,16,9,text);
     void Hover(double x,double y,double w,double h,string text){}
+    void DownTriangle(double center,double tip,double radius,string color,double left=double.NegativeInfinity,double right=double.PositiveInfinity){for(double dy=0;dy<radius*1.7;dy+=.35){double half=radius*(1-dy/(radius*1.7));Line(Math.Max(left,center-half),tip-radius*1.7+dy,Math.Min(right,center+half),tip-radius*1.7+dy,color,.65);}}
     void Rect(double x,double y,double w,double h,string fill);void Line(double x1,double y1,double x2,double y2,string color,double width=1);
     void Text(string text,double x,double y,double size,string color,bool bold=false);void VerticalText(string text,double x,double y,double size,string color);void Circle(double x,double y,double radius,string color,bool hollow=false);
 }
@@ -39,9 +40,9 @@ public static class ChartPainter
         var title=kind switch { ChartKind.Histogram=>"Haltezeitverteilung",ChartKind.Ecdf=>"Geschlossen nach ... (kumulativer Anteil)",ChartKind.Scatter=>"Haltezeit vs. Nettoergebnis",ChartKind.Balance=>"Balance (exportierte Kontostände)",ChartKind.Drawdown=>"Balance-Drawdown (keine Equity-Kurve)",ChartKind.Monthly=>"Monatsergebnis (gebuchte Deals · gesamte Auswahlperiode)",ChartKind.Hourly=>"Zyklusergebnis nach Startstunde",ChartKind.Weekday=>"Zyklusergebnis nach Startwochentag",_=>"Haltezeiten: Gewinner / Verlierer"};
         c.Text(title,x+12,y+10,13,p.Ink,true);
         if(kind is ChartKind.Histogram or ChartKind.Ecdf or ChartKind.Boxplot or ChartKind.Scatter)c.Text(report.ExcludeWeekends?"Bereinigte Handelsdauer":"Kalender-Haltezeit inklusive Wochenenden",x+12,y+height-13,7,p.Muted);
-        double l=x+82,r=x+width-20,t=y+56,b=y+height-69,w=r-l,h=b-t;
+        double l=x+68,r=x+width-24,t=y+56,b=y+height-48,w=r-l,h=b-t;if(kind==ChartKind.Monthly){b=y+height-67;h=b-t;}
         if(s.Count==0&&kind is not (ChartKind.Balance or ChartKind.Drawdown)){c.Text("Keine abgeschlossenen Trades für diese Auswahl.",x+15,y+60,11,p.Muted);return;}
-        void Axes(string yl,string xl,double min,double max){c.VerticalText(yl,x+13,(t+b)/2,7,p.Muted);var axis=ChartAxis.Nice(min,max);foreach(var value in axis.Ticks){double yy=b-h*(value-min)/(max-min);if(yy<t-1||yy>b+1)continue;c.Line(l,yy,r,yy,p.Line,.45);c.RightText(ChartAxis.Number(value)+(yl.Contains("Netto")||yl.Contains("Kontowährung")?" "+DisplayFormat.Currency(report):""),l-5,yy-4,8,p.Muted);}c.Line(l,b,r,b,p.Line);c.Text(xl,l,b+45,7,p.Muted);}
+        void Axes(string yl,string xl,double min,double max){c.VerticalText(yl,x+13,(t+b)/2,7,p.Muted);var axis=ChartAxis.Nice(min,max);foreach(var value in axis.Ticks){double yy=b-h*(value-min)/(max-min);if(yy<t-1||yy>b+1)continue;c.Line(l,yy,r,yy,p.Line,.45);c.RightText(ChartAxis.Number(value)+(yl.Contains("Netto")||yl.Contains("Kontowährung")?" "+DisplayFormat.Currency(report):""),l-5,yy-4,8,p.Muted);}c.Line(l,b,r,b,p.Line);c.CenterText(xl,(l+r)/2,b+23,7,p.Muted);}
         void Legend(){c.Rect(r-178,y+31,8,8,p.Positive);c.Text("Gewinn (+)",r-165,y+29,9,p.Positive);c.Rect(r-83,y+31,8,8,p.Negative);c.Text("Verlust (-)",r-70,y+29,9,p.Negative);}
         if(kind==ChartKind.Histogram)
         {
@@ -66,7 +67,7 @@ public static class ChartPainter
         {
             double maxX=Math.Max(.01,s.Max/3600),min=Math.Min(0,(double)s.Trades.Min(a=>a.Net)),max=Math.Max(0,(double)s.Trades.Max(a=>a.Net));if(max==min)max=min+1;var sa=ChartAxis.Nice(min,max);min=sa.Low;max=sa.High;Axes("Netto (Kontowährung)","Haltezeit",min,max);Legend();
             int hoverIndex=0;foreach(var a in s.Trades.Where((_,i)=>i%Math.Max(1,s.Count/600)==0)){double xx=l+w*Stats.HoldingSeconds(a,report.ExcludeWeekends,report.SaturdayTrading,report.SundayTrading,report.NightPauseMinutes,report.NightPauseStartMinute)/3600/maxX,yy=b-h*((double)a.Net-min)/(max-min);if(c is not PdfCanvas||hoverIndex++%12==0)c.Hover(xx-3,yy-3,6,6,a.Id+" · "+a.Symbol+"\n"+Stats.Duration(Stats.HoldingSeconds(a,report.ExcludeWeekends,report.SaturdayTrading,report.SundayTrading,report.NightPauseMinutes,report.NightPauseStartMinute))+"\nNetto: "+DisplayFormat.Money(a.Net,report));c.Circle(l+w*Stats.HoldingSeconds(a,report.ExcludeWeekends,report.SaturdayTrading,report.SundayTrading,report.NightPauseMinutes,report.NightPauseStartMinute)/3600/maxX,b-h*((double)a.Net-min)/(max-min),1.5,a.Net>=0?p.Positive:p.Negative,a.Estimated);}
-            for(int i=0;i<=4;i++)c.Text(ChartAxis.Duration(maxX*3600*i/4),l+w*i/4-8,b+7,8,p.Muted);return;
+            for(int i=0;i<=4;i++){string label=ChartAxis.Duration(maxX*3600*i/4);double xx=l+w*i/4;if(i==4)c.RightText(label,r,b+7,8,p.Muted);else if(i==0)c.Text(label,l,b+7,8,p.Muted);else c.CenterText(label,xx,b+7,8,p.Muted);}return;
         }
         if(kind is ChartKind.Balance or ChartKind.Drawdown)
         {

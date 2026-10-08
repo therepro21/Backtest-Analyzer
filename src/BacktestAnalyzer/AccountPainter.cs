@@ -16,8 +16,8 @@ public static class AccountPainter
         if(report.SymbolAttributed)title=Localization.English?"Symbol result line (not account equity)":"Symbol-Ergebnislinie (keine Konto-Equity)";
         if(report.MarketEnabled)title+=" · "+marketInterval;
         c.Rect(x,y,width,height,palette.Surface);c.Text(title,x+12,y+10,12,palette.Ink,true);
-        c.Text(report.Find("Währung","Currency"),x+12,y+31,8,palette.Muted);if(report.EquityPoints.Count>0)c.Text(overlay?"Equity-/Balance-Differenz":"Equity-Drawdown",x+60,y+31,7,palette.Negative,true);c.Note("Balance: "+report.BalanceWindowSeconds+" s Buchungsfenster · Equity: gespeicherte Tester-Punkte",x+width-30,y+31,palette.Muted);
-        if(report.MarketEnabled)c.Note((Localization.English?"Source: ":"Quelle: ")+report.MarketSource+" · H1 → "+marketInterval+" · "+(Localization.English?"fixed time blocks in broker time":"feste Zeitblöcke in Brokerzeit"),x+12,y+44,palette.Muted);
+        if(report.EquityPoints.Count>0)c.Text(overlay?"Equity-/Balance-Differenz":"Equity-Drawdown",x+12,y+31,7,palette.Negative,true);c.Note("Balance: "+report.BalanceWindowSeconds+" s Buchungsfenster · Equity: gespeicherte Tester-Punkte",x+width-30,y+31,palette.Muted);
+        if(report.MarketEnabled)c.Note((Localization.English?"Source: ":"Quelle: ")+report.MarketSource+" · H1 → "+marketInterval+" · "+(Localization.English?"fixed time blocks in broker time":"feste Zeitblöcke in Brokerzeit"),x+width-45,y+31,palette.Muted);
         var balances=AccountCurves.DisplayBalances(report);var fullBalances=balances;var dd=AccountCurves.EquityDrawdowns(report);
         if(balances.Count<2){c.Text("Keine ausreichende Balance-Zeitreihe vorhanden.",x+15,y+65,10,palette.Muted);return;}
         if(dd.Count<2)
@@ -30,10 +30,10 @@ public static class AccountPainter
             int count=(end0.Year-start0.Year)*12+end0.Month-start0.Month+1;var month0=new DateTime(start0.Year,start0.Month,1);for(int j=0;month0<end0;month0=month0.AddMonths(1),j++){if(month0<start0)continue;double xx=XX(month0);c.Line(xx,top0,xx,bottom0,palette.Line);if(j%Math.Max(1,(int)Math.Ceiling(count/8d))==0)c.Text(month0.ToString("MM.yy"),xx,bottom0+7,8,palette.Muted);}
             MarketPainter.Draw(c,report,palette,start0,end0,left0,right0,top0,bottom0);
             for(int j=1;j<balances.Count;j++){c.Line(XX(balances[j-1].Time),YY(balances[j-1].Balance),XX(balances[j].Time),YY(balances[j-1].Balance),palette.Positive,.8);c.Line(XX(balances[j].Time),YY(balances[j-1].Balance),XX(balances[j].Time),YY(balances[j].Balance),palette.Positive,.8);}
-            if(report.AccountBookings.Any(b=>b.Kind!="initial")){for(int j=1;j<performance.Count;j++)c.Line(XX(performance[j-1].Time),YY(performance[j-1].Balance),XX(performance[j].Time),YY(performance[j].Balance),palette.Dark?"#CDA0FF":"#8245B5",1);c.Text("Bereinigte Ergebnislinie",left0,top0+32,7,palette.Dark?"#CDA0FF":"#8245B5",true);}EventMarkers.Draw(c,report,palette,start0,end0,left0,right0,top0,bottom0,null,null,y+height-15);return;
+            if(report.AccountBookings.Any(b=>b.Kind!="initial")){for(int j=1;j<performance.Count;j++)c.Line(XX(performance[j-1].Time),YY(performance[j-1].Balance),XX(performance[j].Time),YY(performance[j].Balance),palette.Dark?"#CDA0FF":"#8245B5",1);c.Text("Bereinigte Ergebnislinie",left0,top0+32,7,palette.Dark?"#CDA0FF":"#8245B5",true);}EventMarkers.Draw(c,report,palette,start0,end0,left0,right0,top0,bottom0,null,null,y+height-25);return;
         }
         DateTime start=report.AxisStart??new[]{balances[0].Time,dd[0].Time}.Min(),end=report.AxisEnd??new[]{balances[^1].Time,dd[^1].Time}.Max();double span=Math.Max(1,(end-start).TotalSeconds);
-        double left=x+62,right=x+width-(report.MarketEnabled?43:12),top=y+67,bottom=y+height-32,plot=right-left,split=overlay?bottom:top+(bottom-top)*.65,balBottom=overlay?bottom:split-12,ddTop=split+12;
+        double left=x+62,right=x+width-(report.MarketEnabled?43:12),top=y+67,bottom=y+height-57,plot=right-left,split=overlay?bottom:top+(bottom-top)*.65,balBottom=overlay?bottom:split-12,ddTop=split+12;
         balances=Reduce(balances,start,span,plot);
         decimal low=balances.Min(p=>p.Balance),high=balances.Max(p=>p.Balance);if(overlay||report.MarketEnabled){low=Math.Min(low,dd.Min(p=>p.Equity));high=Math.Max(high,dd.Max(p=>p.Equity));}
         decimal pad=Math.Max(1,(high-low)*.04m);low=Math.Max(0,low-pad);high+=pad;var axis=ChartAxis.Nice((double)low,(double)high,8);low=(decimal)axis.Low;high=(decimal)axis.High;
@@ -74,6 +74,6 @@ public static class AccountPainter
         }
 
         if(report.MarketEnabled)MarketPainter.Draw(c,report,palette,start,end,left,right,top,balBottom,true);
-        EventMarkers.Draw(c,report,palette,start,end,left,right,top,balBottom,overlay?null:ddTop,overlay?null:bottom,y+height-11);
+        EventMarkers.Draw(c,report,palette,start,end,left,right,top,balBottom,overlay?null:ddTop,overlay?null:bottom,y+height-25);
     }
 }

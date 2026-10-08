@@ -1,4 +1,5 @@
 namespace BacktestAnalyzer;
+public sealed record EventQuote(DateTime EventTime,DateTime CloseTime,decimal Price,int Minutes,string Symbol,string Source);
 public sealed record DrawdownEvent(DateTime Start,DateTime Trough,DateTime? Recovery,decimal Peak,decimal Equity,decimal Money,decimal Percent);
 public static class EventDetails
 {
@@ -11,13 +12,17 @@ public static class EventDetails
     }
     public static string Quote(Report r,DateTime time)
     {
-        var bar=r.MarketBars.LastOrDefault(b=>MarketData.BrokerTime(r,b.Utc).AddHours(1)<=time&&time<MarketData.BrokerTime(r,b.Utc).AddHours(2));
-        return bar==null?(Localization.English?"market price unavailable":"Marktkurs nicht verfügbar"):(Localization.English?"H1 close":"H1-Schluss")+" "+bar.Close.ToString("N2",Localization.Culture)+" "+MarketData.PriceCurrency(r)+" · "+DisplayFormat.Time(MarketData.BrokerTime(r,bar.Utc).AddHours(1));
+        var symbol=r.MarketLoadedSymbol.Length>0?r.MarketLoadedSymbol:r.MarketSymbol;
+        var executions=(r.FullHistory.Count>0?r.FullHistory:r.Deals).Where(d=>d.Time==time&&SymbolAliases.Canonical(d.Symbol)==SymbolAliases.Canonical(symbol)&&d.Price>0).Select(d=>d.Price).Distinct().ToArray();
+        if(executions.Length==1)return (Localization.English?"Execution ":"Ausführung ")+executions[0].ToString("N2",Localization.Culture)+" "+MarketData.PriceCurrency(r);
+        var q=r.EventQuotes.FirstOrDefault(q=>q.EventTime==time&&q.Symbol==symbol&&q.Price>0&&q.Minutes is 1 or 5&&q.CloseTime<=time&&(time-q.CloseTime).TotalMinutes<q.Minutes);
+        return q!=null?"M"+q.Minutes+" "+q.Price.ToString("N2",Localization.Culture)+" "+MarketData.PriceCurrency(r)+" ("+q.CloseTime.ToString("HH:mm")+")":(Localization.English?"price unavailable":"Kurs nicht verfügbar");
     }
     public static string Describe(Report r,DrawdownEvent e)
     {
         var end=e.Recovery??r.EquityPoints.Max(p=>p.Time);var duration=Stats.HoldingSeconds(new Trade{Open=e.Start,Close=end},r.ExcludeWeekends,r.SaturdayTrading,r.SundayTrading,r.NightPauseMinutes,r.NightPauseStartMinute);
-        return (Localization.English?"Trading duration":"Handelsdauer")+": "+Stats.Duration(duration)+"\n"+(Localization.English?"Peak → trough":"Höchststand → Tiefpunkt")+": "+DisplayFormat.Money(e.Peak,r)+" → "+DisplayFormat.Money(e.Equity,r)+"\n"+(Localization.English?"Start":"Beginn")+": "+DisplayFormat.Time(e.Start)+"\n"+Quote(r,e.Start)+"\n"+(Localization.English?"Trough":"Tiefpunkt")+": "+DisplayFormat.Time(e.Trough)+"\n"+Quote(r,e.Trough)+"\n"+(e.Recovery.HasValue?(Localization.English?"Recovered":"Erholt")+": "+DisplayFormat.Time(e.Recovery.Value)+"\n"+Quote(r,e.Recovery.Value):(Localization.English?"Not recovered by":"Nicht erholt bis")+" "+DisplayFormat.Time(end));
+        string At(string label,DateTime t)=>label+": "+t.ToString("dd.MM.yy HH:mm:ss")+" · "+Quote(r,t);
+        return (Localization.English?"Trading duration":"Handelsdauer")+": "+Stats.Duration(duration)+"\n"+(Localization.English?"Peak → trough":"Höchststand → Tiefpunkt")+": "+DisplayFormat.Money(e.Peak,r)+" → "+DisplayFormat.Money(e.Equity,r)+"\n"+At(Localization.English?"Start":"Beginn",e.Start)+"\n"+At(Localization.English?"Trough":"Tiefpunkt",e.Trough)+"\n"+(e.Recovery.HasValue?At(Localization.English?"Recovered":"Erholt",e.Recovery.Value):(Localization.English?"Not recovered by":"Nicht erholt bis")+" "+end.ToString("dd.MM.yy HH:mm:ss"));
 
     }
     public static (string Duration,string Period,string Prices) Longest(Report r,IEnumerable<Trade>? subset=null,bool forceSingle=false)

@@ -11,6 +11,20 @@ def main():
             symbols=mt.symbols_get()
             if symbols is None:raise RuntimeError(str(mt.last_error()))
             print(json.dumps([{'name':s.name,'custom':bool(s.custom),'description':s.description,'currencyBase':s.currency_base,'currencyProfit':s.currency_profit,'contractSize':s.trade_contract_size} for s in symbols]));return
+        if action=='quotes':
+            name=sys.argv[3]
+            if mt.symbol_info(name) is None:raise RuntimeError('Exact symbol not found: '+name)
+            result=[]
+            for event in sorted(set(json.loads(sys.argv[4]))):
+                for minutes,frame in [(1,mt.TIMEFRAME_M1),(5,mt.TIMEFRAME_M5)]:
+                    # Read a bounded local window; never download a complete M1 series.
+                    bars=mt.copy_rates_range(name,frame,datetime.fromtimestamp(event-minutes*180,timezone.utc),datetime.fromtimestamp(event,timezone.utc))
+                    usable=[] if bars is None else [b for b in bars if int(b['time'])+minutes*60<=event and event-(int(b['time'])+minutes*60)<minutes*60]
+                    if usable:
+                        b=max(usable,key=lambda b:int(b['time']))
+                        result.append({'EventTime':datetime.fromtimestamp(event,timezone.utc).strftime('%Y-%m-%dT%H:%M:%S'),'CloseTime':datetime.fromtimestamp(int(b['time'])+minutes*60,timezone.utc).strftime('%Y-%m-%dT%H:%M:%S'),'Price':float(b['close']),'Minutes':minutes,'Symbol':name,'Source':'MT5 broker candle close'})
+                        break
+            print(json.dumps(result));return
         if action!='bars':raise ValueError('Unknown action')
         name=sys.argv[3];info=mt.symbol_info(name)
         if info is None:raise RuntimeError('Exact symbol not found: '+name)

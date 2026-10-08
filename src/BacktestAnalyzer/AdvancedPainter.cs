@@ -6,7 +6,7 @@ public static class AdvancedPainter
  public static void Draw(ICanvas c,ChartKind kind,Report r,Palette p,double x,double y,double width,double height)
  {
   var panel=AdvancedAnalysis.Panel(r,kind);c.Rect(x,y,width,height,p.Surface);c.Text(panel.Title,x+12,y+10,11,p.Ink,true);
-  c.Note(panel.Note,x+12,y+30,p.Muted);
+  c.Note(panel.Note,x+width-30,y+14,p.Muted);
   var vals=panel.Values;if(vals.Count==0)return;double left=x+58,right=x+width-15,top=y+58,bottom=y+height-44,w=right-left,h=bottom-top;
   if(kind==ChartKind.Correlation){int n=(int)Math.Sqrt(vals.Count);if(n<2){c.Text(Localization.English?"At least two symbols required":"Mindestens zwei Symbole erforderlich",left,top,9,p.Muted);return;}double cw=Math.Min(w/n,h/n);for(int i=0;i<n;i++){c.RightText(vals[i*n].Label.Split(" / ")[0],left-6,top+i*cw+cw/2-3,6,p.Muted);c.Text(vals[i].Label.Split(" / ")[1],left+i*cw,top-9,6,p.Muted);for(int j=0;j<n;j++){var v=vals[i*n+j];double xx=left+j*cw,yy=top+i*cw;var col=ThemeSets.Blend(v.A>=0?p.Positive:p.Negative,p.Surface,Math.Abs(v.A));c.Rect(xx,yy,cw-1,cw-1,col);c.Text(v.Detail.StartsWith("r=")?v.A.ToString("0.00"):"n/a",xx+2,yy+cw/2-3,6,Math.Abs(v.A)>.65?p.Surface:p.Ink);c.Hover(xx,yy,cw-1,cw-1,v.Label+"\n"+v.Detail);}}return;}
   if(kind==ChartKind.Costs){

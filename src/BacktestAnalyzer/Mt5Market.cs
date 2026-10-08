@@ -14,11 +14,24 @@ public static class Mt5Market
     }
     public static async Task<List<Mt5Symbol>> Symbols(string terminal)=>JsonSerializer.Deserialize<List<Mt5Symbol>>(await Run("symbols",terminal),Json)??new();
     sealed record Result(string Symbol,bool Custom,List<MarketBar> Bars);
+    public static async Task LoadEventQuotes(Report r,string terminal,string symbol)
+    {
+        if(r.EquityPoints.Count==0)return;
+        var scopes=new[]{r}.Concat(ReportOptions.Scopes(r)).Distinct();
+        var times=scopes.SelectMany(s=>EventDetails.Drawdowns(s).SelectMany(e=>new DateTime?[]{e.Start,e.Trough,e.Recovery})).Where(t=>t.HasValue).Select(t=>t!.Value).Distinct().Order().ToArray();
+        if(times.Length==0)return;
+        var stamps=times.Select(t=>new DateTimeOffset(DateTime.SpecifyKind(t,DateTimeKind.Utc)).ToUnixTimeSeconds());
+        var quotes=JsonSerializer.Deserialize<List<EventQuote>>(await Run("quotes",terminal,symbol,JsonSerializer.Serialize(stamps)),Json)??new();
+        if(quotes.Any(q=>!times.Contains(q.EventTime)||q.Symbol!=symbol||q.Price<=0||q.Minutes is not (1 or 5)||q.CloseTime>q.EventTime||(q.EventTime-q.CloseTime).TotalMinutes>=q.Minutes))throw new InvalidDataException("Ungültige Ereigniskurse.");
+        r.EventQuotes.RemoveAll(q=>q.Symbol==symbol&&times.Contains(q.EventTime));r.EventQuotes.AddRange(quotes);
+        if(quotes.Count<times.Length)r.Warnings.Add($"Ereigniskurse: {quotes.Count} von {times.Length} Zeitpunkten mit M1/M5-Schlusskurs verfügbar. Fehlende Kurse bleiben ausdrücklich unverfügbar.");
+    }
     public static async Task Load(Report r,string terminal,string symbol)
     {
         var times=r.Deals.Select(d=>d.Time).Concat(r.Balances.Select(b=>b.Time)).ToList();if(times.Count==0)throw new InvalidOperationException("Kein Zeitraum vorhanden.");long Unix(DateTime t)=>new DateTimeOffset(DateTime.SpecifyKind(t,DateTimeKind.Utc)).ToUnixTimeSeconds();
         var result=JsonSerializer.Deserialize<Result>(await Run("bars",terminal,symbol,Unix(times.Min().AddDays(-1)).ToString(),Unix(times.Max().AddDays(1)).ToString()),Json)??throw new InvalidDataException("MT5-Daten fehlen.");if(result.Symbol!=symbol||result.Bars.Count==0)throw new InvalidDataException("Symbol oder Daten passen nicht.");
         if(result.Bars.Any(b=>b.Open<=0||b.Close<=0||b.Low>Math.Min(b.Open,b.Close)||b.High<Math.Max(b.Open,b.Close)))throw new InvalidDataException("MT5 lieferte inkonsistente OHLC-Werte.");
         r.MarketSymbol=symbol;r.MarketLoadedSymbol=symbol;r.MarketBars=result.Bars.OrderBy(b=>b.Utc).ToList();r.MarketSourceTimeIsBroker=true;r.MarketSource="MT5 "+Path.GetDirectoryName(terminal)!.Split(Path.DirectorySeparatorChar).Last()+" · "+symbol+(result.Custom?" (Custom)":"");r.MarketStatus="";r.MarketEnabled=true;r.MarketTerminalPath=terminal;r.MarketMt5Symbol=symbol;r.MarketIsCustom=result.Custom;var original=r.MarketBrokerSymbol.Length>0?r.MarketBrokerSymbol:symbol;r.SymbolMarkets[original]=new(symbol,r.MarketSource,true,result.Custom,r.MarketBars);r.SymbolMappings[original]=symbol;
+        await LoadEventQuotes(r,terminal,symbol);
     }
 }

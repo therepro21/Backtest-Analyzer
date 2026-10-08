@@ -39,6 +39,7 @@ public sealed class Report
     public string MarketInterval {get;set;}="Auto";public string MarketSource {get;set;}="";public string MarketStatus {get;set;}="";
     public int BrokerUtcOffsetMinutes {get;set;}=180;public int BrokerWinterOffsetMinutes {get;set;}=120;public string BrokerTimeRule {get;set;}="Fixed";public bool BrokerTimeConfirmed {get;set;}=false;
     public List<MarketBar> MarketBars {get;set;}=new();
+    public List<EventQuote> EventQuotes {get;set;}=new();
     public decimal? EquityReferencePeak {get;set;}
     public Report Range(DateTime start,DateTime end)
     {
