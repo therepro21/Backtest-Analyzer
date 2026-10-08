@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
 namespace BacktestAnalyzer;
-public sealed record Mt5Symbol(string Name,bool Custom,string Description){public string Label=>Name+(Custom?" · Custom":"")+" · "+Description;}
+public sealed record Mt5Symbol(string Name,bool Custom,string Description,string CurrencyBase="",string CurrencyProfit="",double ContractSize=0){public string Label=>Name+(Custom?" · Custom":"")+" · "+Description;}
 public static class Mt5Market
 {
+    public static List<Mt5Symbol> Candidates(string original,IEnumerable<Mt5Symbol> all)=>all.Where(s=>s.Name==original||SymbolAliases.Canonical(s.Name)==SymbolAliases.Canonical(original)).OrderByDescending(s=>s.Name==original).ToList();
     static readonly JsonSerializerOptions Json=new(){PropertyNameCaseInsensitive=true};
     public static string[] Terminals()=>Process.GetProcessesByName("terminal64").Select(p=>{try{return p.MainModule?.FileName;}catch{return null;}}).Where(p=>p!=null).Cast<string>().Distinct().ToArray();
     static async Task<string> Run(params string[] args)
@@ -18,6 +19,6 @@ public static class Mt5Market
         var times=r.Deals.Select(d=>d.Time).Concat(r.Balances.Select(b=>b.Time)).ToList();if(times.Count==0)throw new InvalidOperationException("Kein Zeitraum vorhanden.");long Unix(DateTime t)=>new DateTimeOffset(DateTime.SpecifyKind(t,DateTimeKind.Utc)).ToUnixTimeSeconds();
         var result=JsonSerializer.Deserialize<Result>(await Run("bars",terminal,symbol,Unix(times.Min().AddDays(-1)).ToString(),Unix(times.Max().AddDays(1)).ToString()),Json)??throw new InvalidDataException("MT5-Daten fehlen.");if(result.Symbol!=symbol||result.Bars.Count==0)throw new InvalidDataException("Symbol oder Daten passen nicht.");
         if(result.Bars.Any(b=>b.Open<=0||b.Close<=0||b.Low>Math.Min(b.Open,b.Close)||b.High<Math.Max(b.Open,b.Close)))throw new InvalidDataException("MT5 lieferte inkonsistente OHLC-Werte.");
-        r.MarketSymbol=symbol;r.MarketLoadedSymbol=symbol;r.MarketBars=result.Bars.OrderBy(b=>b.Utc).ToList();r.MarketSourceTimeIsBroker=true;r.MarketSource="MT5 "+Path.GetDirectoryName(terminal)!.Split(Path.DirectorySeparatorChar).Last()+" · "+symbol+(result.Custom?" (Custom)":"");r.MarketStatus="";r.MarketEnabled=true;r.MarketTerminalPath=terminal;r.MarketMt5Symbol=symbol;r.MarketIsCustom=result.Custom;
+        r.MarketSymbol=symbol;r.MarketLoadedSymbol=symbol;r.MarketBars=result.Bars.OrderBy(b=>b.Utc).ToList();r.MarketSourceTimeIsBroker=true;r.MarketSource="MT5 "+Path.GetDirectoryName(terminal)!.Split(Path.DirectorySeparatorChar).Last()+" · "+symbol+(result.Custom?" (Custom)":"");r.MarketStatus="";r.MarketEnabled=true;r.MarketTerminalPath=terminal;r.MarketMt5Symbol=symbol;r.MarketIsCustom=result.Custom;var original=r.MarketBrokerSymbol.Length>0?r.MarketBrokerSymbol:symbol;r.SymbolMarkets[original]=new(symbol,r.MarketSource,true,result.Custom,r.MarketBars);r.SymbolMappings[original]=symbol;
     }
 }

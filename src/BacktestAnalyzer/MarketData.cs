@@ -11,7 +11,7 @@ public static class MarketData
 {
     static readonly HttpClient Http=new(){Timeout=TimeSpan.FromSeconds(25)};
     public static readonly string[] Symbols={"XAUUSD","XAGUSD","EURUSD","GBPUSD","USDJPY","USDCHF","AUDUSD","USDCAD","NZDUSD","BTCUSD","ETHUSD"};
-    public static string Suggest(string brokerSymbol){var s=brokerSymbol.ToUpperInvariant();if(s.Contains("GOLD")||s.Contains("XAU"))return "XAUUSD";if(s.Contains("SILVER")||s.Contains("XAG"))return "XAGUSD";return Symbols.FirstOrDefault(s.Contains)??"";}
+    public static string Suggest(string brokerSymbol){var s=SymbolAliases.Canonical(brokerSymbol);return SymbolAliases.Instruments.Contains(s)?s:"";}
     public static int Offset(Report r,DateTime utc)
     {
         if(r.BrokerTimeRule=="EU")return r.BrokerWinterOffsetMinutes+(TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time").IsDaylightSavingTime(DateTime.SpecifyKind(utc,DateTimeKind.Utc))?60:0);

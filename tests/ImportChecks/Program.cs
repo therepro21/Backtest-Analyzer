@@ -92,3 +92,15 @@ static void Check(Report r)
     if(r.InitialDeposit!=100||r.Deals.Count!=2||r.Closed.Count!=1||r.Closed[0].Seconds!=3600||r.Closed[0].Net!=16||r.Closed[0].Estimated||r.InputParameters.Count!=2||r.Deals[0].Comment!="ä & <text>")throw new Exception("Import control failed");
     if(r.Warnings.Any(w=>w.Contains("Separate Gebühren")))throw new Exception("Present fee column marked missing");
 }
+
+foreach(var variant in new[]{"EURUSD_TDS","eur usd","EUR/USD","EUR_USD_tickstory","EURUSDmicro","EURUSDm_TDS_2024"})if(SymbolAliases.Canonical(variant)!="EURUSD")throw new Exception("Alias: "+variant);
+if(SymbolAliases.Canonical("GOLDgr")=="XAUUSD"||SymbolAliases.Canonical("BTCUSDT")=="BTCUSD")throw new Exception("Unsafe alias");
+
+var multi=new Report{InitialDeposit=100,Deals=new(){new("1","1","1",new DateTime(2025,1,1),"EURUSD","buy","in",1,1,0,0,0,0,100,""),new("2","1","1",new DateTime(2025,1,2),"EURUSD","sell","out",1,1,5,0,0,0,105,""),new("3","3","3",new DateTime(2025,1,3),"AUDUSD","buy","in",1,1,0,0,0,0,105,""),new("4","3","3",new DateTime(2025,1,4),"AUDUSD","sell","out",1,1,-2,0,0,0,103,"")},MarketEnabled=true};
+var eur=SymbolAnalysis.ForSymbol(multi,"EURUSD");var aud=SymbolAnalysis.ForSymbol(multi,"AUDUSD");
+if(eur.Deals.Sum(d=>d.Net)+aud.Deals.Sum(d=>d.Net)!=multi.Deals.Sum(d=>d.Net)||eur.EquityPoints.Count!=0||SymbolAnalysis.ForSymbol(multi,"").MarketEnabled)throw new Exception("Symbol attribution");
+if(AdvancedAnalysis.Correlation(new[]{1d,2,3},new[]{3d,2,1})!= -1)throw new Exception("Correlation");
+var sim1=AdvancedAnalysis.Simulate(multi,30,123);var sim2=AdvancedAnalysis.Simulate(multi,30,123);if(!sim1.SequenceEqual(sim2))throw new Exception("MC reproducibility");
+Console.WriteLine("Passed: symbol aliases, unsafe substitutions, multi-symbol attribution, correlation and simulation reproducibility.");
+
+var many=new Report{InitialDeposit=100,DrawdownCount=20};var date=new DateTime(2024,1,1);many.EquityPoints.Add((date,100,100,0));for(int i=1;i<=25;i++){many.EquityPoints.Add((date.AddHours(i*2-1),100,100-i,0));many.EquityPoints.Add((date.AddHours(i*2),100,100,0));}if(EventDetails.Drawdowns(many).Count!=20)throw new Exception("DD 20 limit");many.DrawdownEnabled=false;if(EventDetails.Drawdowns(many).Count!=0)throw new Exception("DD disabled");SymbolAnalysis.SetEvents(multi);var yr=YearAnalysis.ForYear(multi,2024);if(yr.ActualTestEnd!=multi.Deals.Max(d=>d.Time))throw new Exception("Global test end lost");Console.WriteLine("Passed: DD selection 0/20 and annual global end markers.");

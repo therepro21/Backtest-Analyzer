@@ -15,10 +15,9 @@ public static class SeriesPainter
   double maximum=Math.Max(1,Enumerable.Range(0,7).SelectMany(d=>Enumerable.Range(0,24).Select(h=>Value(d,h))).Max());
   double left=x+40,top=y+70,pw=width-55,ph=height-126;var days=new[]{"Mo","Di","Mi","Do","Fr","Sa","So"};var enabled=ReportOptions.Days(report);
   if(!curves){double cw=pw/24,ch=ph/enabled.Length;
-   if(c is PdfCanvas)for(int hour=0;hour<24;hour++){int h=hour;c.Hover(left+h*cw,top,cw,ph,DisplayFormat.Hour(h)+"\n"+string.Join("\n",enabled.Select(d=>$"{days[d]}: {counts[d,h]} lange / {totals[d,h]} Starts · "+(totals[d,h]>0?$"{100d*counts[d,h]/totals[d,h]:N1} %":"—"))));}
    for(int row=0;row<enabled.Length;row++){int d=enabled[row];c.Text(days[d],x+9,top+ch*row+ch/2-4,8,p.Muted);for(int h=0;h<24;h++){
     double v=Value(d,h),f=v/maximum;string color=totals[d,h]==0?p.Background:v==0?(p.Dark?"#24384D":"#E5EFFA"):f>.75?p.Negative:f>.5?(p.Dark?"#CA9149":"#E49D40"):f>.25?(p.Dark?"#996F43":"#F0BD7A"):(p.Dark?"#5F5444":"#F9DFC0");c.Rect(left+h*cw+1,top+row*ch+1,cw-2,ch-2,color);
-    if(c is not PdfCanvas)c.Hover(left+h*cw,top+row*ch,cw,ch,$"{days[d]} · "+DisplayFormat.Hour(h)+$"\n{counts[d,h]} lange / {totals[d,h]} Starts\n"+(totals[d,h]>0?$"{100d*counts[d,h]/totals[d,h]:N1} %":"Keine Starts"));
+    c.Hover(left+h*cw,top+row*ch,cw,ch,$"{days[d]} · "+DisplayFormat.Hour(h)+"–"+DisplayFormat.Hour(h+1)+$"\n{counts[d,h]} lange / {totals[d,h]} Starts\n"+(totals[d,h]>0?$"{100d*counts[d,h]/totals[d,h]:N1} %":"Keine Starts"));
     if(cw>17)c.Text(totals[d,h]==0?"—":report.SeriesAsPercent?v.ToString("0")+"%":v.ToString("0"),left+h*cw+3,top+row*ch+ch/2-3,6.5,f>.5?"#15283B":p.Ink);
    }}for(int h=0;h<24;h+=2)c.Text(DisplayFormat.Hour(h),left+h*cw,top+ph+7,7,p.Muted);
    c.Text(report.SeriesAsPercent?"Anteil langer Zyklen an allen Starts im jeweiligen Feld (%)":"Anzahl langer Zyklen je Wochentag und Startstunde",x+12,y+height-29,7,p.Muted);

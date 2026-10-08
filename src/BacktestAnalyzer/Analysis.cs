@@ -23,6 +23,10 @@ public sealed class Trade
 }
 public sealed class Report
 {
+    public bool DrawdownEnabled {get;set;}=true; public int DrawdownCount {get;set;}=5;
+    public string ScopeSymbol {get;set;}=""; public bool SymbolAttributed {get;set;}
+    public Dictionary<string,MarketSeries> SymbolMarkets {get;set;}=new();
+    public Dictionary<string,string> SymbolMappings {get;set;}=new();
     public string StrategyMode {get;set;}="basket";
     public bool MarketEnabled {get;set;}=false;
     public bool MarketDemoInclude {get;set;}=false;public int MarketDemoYear {get;set;}=2025;
@@ -37,6 +41,8 @@ public sealed class Report
         if(end<=start)throw new ArgumentException("Ende muss nach Anfang liegen.");var r=(Report)MemberwiseClone();r.AxisStart=start;r.AxisEnd=end;r.AnalysisYear=null;r.Balances=Balances.Where(b=>b.Time>=start&&b.Time<=end).ToList();var balance=Balances.LastOrDefault(b=>b.Time<start);if(balance.Time!=default)r.Balances.Insert(0,(start,balance.Balance));r.EquityPoints=EquityPoints.Where(b=>b.Time>=start&&b.Time<=end).ToList();var equity=EquityPoints.LastOrDefault(b=>b.Time<start);if(equity.Time!=default)r.EquityPoints.Insert(0,(start,equity.Balance,equity.Equity,equity.DepositLoad));r.EquityReferencePeak=EquityPoints.Where(b=>b.Time<=start).Select(b=>b.Equity).DefaultIfEmpty(InitialDeposit).Max();return r;
     }
     public bool SaturdayTrading {get;set;}=false;public bool SundayTrading {get;set;}=false;public string ReportScope {get;set;}="both";
+    public DateTime? ActualTestEnd {get;set;}
+    public DateTime? PenultimateClose {get;set;}
     public List<Deal> FullHistory {get;set;}=new();
     public string EquitySource {get;set;}="";
     public List<(DateTime Time,decimal Balance,decimal Equity,decimal DepositLoad)> EquityPoints {get;set;}=new();

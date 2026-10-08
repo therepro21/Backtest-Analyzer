@@ -5,10 +5,11 @@ using System.Windows.Media;
 namespace BacktestAnalyzer;
 public record Palette(bool Dark)
 {
-    public string Background=>Dark?"#101B2B":"#F2F5F9";public string Surface=>Dark?"#19273B":"#FFFFFF";
+    public string Background=>ThemeSets.Color(Dark,"Background",Dark?"#101B2B":"#F2F5F9");public string Surface=>ThemeSets.Color(Dark,"Surface",Dark?"#19273B":"#FFFFFF");
     public string Ink=>Dark?"#EAF1FA":"#173047";public string Muted=>Dark?"#A9B9CE":"#52677D";
-    public string Line=>Dark?"#3B4D64":"#DCE4ED";public string Positive=>Dark?"#76B7FF":"#113B65";
-    public string Negative=>Dark?"#FFB348":"#C87500";
+    public string Line=>Dark?"#3B4D64":"#DCE4ED";public string Positive=>ThemeSets.Color(Dark,"Positive",Dark?"#76B7FF":"#113B65");
+    public string PositiveFill=>ThemeSets.Blend(Positive,Surface,Dark?.48:.12); public string NegativeFill=>ThemeSets.Blend(Negative,Surface,Dark?.48:.16);
+    public string Negative=>ThemeSets.Color(Dark,"Negative",Dark?"#FFB348":"#C87500");
 }
 public interface ICanvas
 {
@@ -18,12 +19,13 @@ public interface ICanvas
     void Rect(double x,double y,double w,double h,string fill);void Line(double x1,double y1,double x2,double y2,string color,double width=1);
     void Text(string text,double x,double y,double size,string color,bool bold=false);void VerticalText(string text,double x,double y,double size,string color);void Circle(double x,double y,double radius,string color,bool hollow=false);
 }
-public enum ChartKind { Histogram, Ecdf, Scatter, Balance, Equity, Drawdown, Monthly, Hourly, Weekday, Boxplot,SeriesHeatmap,SeriesCurve,EntryWins,EntryLosses,EntryLossRate,EntryHour,EntryWeekday,EntryMonth,ResultHour,ResultWeekday,ResultMonth }
+public enum ChartKind { Concentration,Streaks,Rolling,Underwater,Basket,Costs,Correlation,Risk,Excursion,MonteCarlo,Stress,Regimes,StrategyGroups, Histogram, Ecdf, Scatter, Balance, Equity, Drawdown, Monthly, Hourly, Weekday, Boxplot,SeriesHeatmap,SeriesCurve,EntryWins,EntryLosses,EntryLossRate,EntryHour,EntryWeekday,EntryMonth,ResultHour,ResultWeekday,ResultMonth }
 public static class ChartPainter
 {
     public static string Compact(double n)=>Math.Abs(n)>=1e9?(n/1e9).ToString("0.##",CultureInfo.InvariantCulture)+"B":Math.Abs(n)>=1e6?(n/1e6).ToString("0.##",CultureInfo.InvariantCulture)+"M":Math.Abs(n)>=1000?(n/1000).ToString("0.##",CultureInfo.InvariantCulture)+"K":n.ToString("0.##",CultureInfo.InvariantCulture);
     public static void Draw(ICanvas c,ChartKind kind,Report report,List<Trade> trades,Palette p,double x,double y,double width,double height)
     {
+        if(AdvancedPainter.Kinds.Contains(kind)){AdvancedPainter.Draw(c,kind,report,p,x,y,width,height);return;}
         if(kind is ChartKind.Hourly or ChartKind.Weekday){OriginalPainter.Draw(c,report,p,x,y,width,height,kind==ChartKind.Hourly?ChartKind.ResultHour:ChartKind.ResultWeekday);return;}
         if(kind is ChartKind.EntryHour or ChartKind.EntryWeekday or ChartKind.EntryMonth or ChartKind.ResultHour or ChartKind.ResultWeekday or ChartKind.ResultMonth){OriginalPainter.Draw(c,report,p,x,y,width,height,kind);return;}
         if(kind is ChartKind.Histogram or ChartKind.Ecdf or ChartKind.Boxplot){HoldingPainter.Draw(c,kind,report,trades,p,x,y,width,height);return;}

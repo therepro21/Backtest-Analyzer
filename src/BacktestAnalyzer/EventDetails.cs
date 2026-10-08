@@ -2,12 +2,12 @@ namespace BacktestAnalyzer;
 public sealed record DrawdownEvent(DateTime Start,DateTime Trough,DateTime? Recovery,decimal Peak,decimal Equity,decimal Money,decimal Percent);
 public static class EventDetails
 {
-    public static List<DrawdownEvent> Drawdowns(Report r)
+    public static List<DrawdownEvent> Drawdowns(Report r,int? limit=null)
     {
         var points=r.EquityPoints.OrderBy(p=>p.Time).ToList();if(points.Count==0)return new();
         decimal peak=r.EquityReferencePeak??points[0].Equity;DateTime peakTime=points[0].Time;DrawdownEvent? active=null;var events=new List<DrawdownEvent>();
         foreach(var p in points){if(p.Equity>=peak){if(active!=null){events.Add(active with{Recovery=p.Time});active=null;}peak=p.Equity;peakTime=p.Time;}else{decimal money=peak-p.Equity,pct=peak>0?money/peak*100:0;if(active==null||money>active.Money)active=new(peakTime,p.Time,null,peak,p.Equity,money,pct);}}
-        if(active!=null)events.Add(active);return events.OrderByDescending(e=>e.Percent).ThenByDescending(e=>e.Money).Take(5).ToList();
+        if(active!=null)events.Add(active);return events.OrderByDescending(e=>e.Percent).ThenByDescending(e=>e.Money).Take(limit??(r.DrawdownEnabled?Math.Clamp(r.DrawdownCount,1,20):0)).ToList();
     }
     public static string Quote(Report r,DateTime time)
     {

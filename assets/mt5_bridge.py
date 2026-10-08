@@ -10,7 +10,7 @@ def main():
         if action=='symbols':
             symbols=mt.symbols_get()
             if symbols is None:raise RuntimeError(str(mt.last_error()))
-            print(json.dumps([{'name':s.name,'custom':bool(s.custom),'description':s.description} for s in symbols]));return
+            print(json.dumps([{'name':s.name,'custom':bool(s.custom),'description':s.description,'currencyBase':s.currency_base,'currencyProfit':s.currency_profit,'contractSize':s.trade_contract_size} for s in symbols]));return
         if action!='bars':raise ValueError('Unknown action')
         name=sys.argv[3];info=mt.symbol_info(name)
         if info is None:raise RuntimeError('Exact symbol not found: '+name)
