@@ -46,16 +46,16 @@ public static class HtmlExport
         }
         if(report.EquityPoints.Count==0)
         {
-            var original=events.ToList();events.Clear();int cursor=0;decimal high=report.InitialDeposit;
-            foreach(var point in AccountCurves.DisplayBalances(report))
+            events.Clear();decimal high=report.InitialDeposit;var performance=AccountHistory.Performance(report);var exposure=Exposure.Points(report);var displayed=AccountCurves.DisplayBalances(report).Concat(report.AccountBookings.Select(b=>(b.Time,report.Balances.LastOrDefault(q=>q.Time<=b.Time).Balance))).GroupBy(q=>q.Time).Select(g=>g.Last()).OrderBy(q=>q.Time);
+            foreach(var point in displayed)
             {
-                long time=new DateTimeOffset(DateTime.SpecifyKind(point.Time,DateTimeKind.Utc)).ToUnixTimeMilliseconds();while(cursor+1<original.Count&&(long)original[cursor+1][0]<=time)cursor++;var old=original[cursor];high=Math.Max(high,point.Balance);
-                events.Add(new object[]{time,point.Balance,0m,0m,old[4],old[5],old[6],high});
+                long time=new DateTimeOffset(DateTime.SpecifyKind(point.Time,DateTimeKind.Utc)).ToUnixTimeMilliseconds();decimal adjusted=performance.LastOrDefault(q=>q.Time<=point.Time).Balance;high=Math.Max(high,adjusted);var inventory=exposure.LastOrDefault(q=>q.Time<=point.Time);string label=string.Join(" · ",report.AccountBookings.Where(b=>b.Time==point.Time).Select(b=>Localization.T(AccountHistory.Label(b))+": "+DisplayFormat.Money(b.Amount,report)));decimal money=high-adjusted;
+                events.Add(new object[]{time,point.Balance,money,high>0?money/high*100:0,inventory?.BuyLots??0,inventory?.SellLots??0,label.Length>0?label:"Kontostand",high});
             }
         }
         if(events.Count<2)throw new InvalidDataException("Zu wenige numerische Balancewerte für einen interaktiven Verlauf.");
         string title=WebUtility.HtmlEncode(report.Strategy),currency=WebUtility.HtmlEncode(report.Find("Währung","Currency"));
-        string sections=HtmlSections.Build(report);string ddLabel=report.EquityPoints.Count>0?"Equity-Drawdown (Gesamttest-Hoch)":"Equity-Drawdown nicht verfügbar";
+        string sections=HtmlSections.Build(report)+"<details style='margin-top:24px;font-size:9px'><summary>"+Localization.T("Hilfe und Erklärung")+"</summary><div style='columns:2;column-gap:24px'>"+string.Join("",HelpContent.Sections(report).Select(s=>"<p><b>"+WebUtility.HtmlEncode(s.Title)+"</b><br>"+WebUtility.HtmlEncode(s.Body)+"</p>"))+"</div></details>";string ddLabel=report.EquityPoints.Count>0?"Equity-Drawdown (Gesamttest-Hoch)":"Balance-Drawdown (bereinigt)";
         string logo=Convert.ToBase64String(PdfExport.Logo);string data=JsonSerializer.Serialize(events);
         string html=$$$$"""
 <!doctype html>

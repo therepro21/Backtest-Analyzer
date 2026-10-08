@@ -20,6 +20,6 @@ public static class AccountCurves
     public static List<(DateTime Time,decimal Equity,decimal Money,decimal Percent)> EquityDrawdowns(Report report)
     {
         var result=new List<(DateTime,decimal,decimal,decimal)>();decimal peak=report.EquityReferencePeak??(report.EquityPoints.Count>0?report.EquityPoints[0].Equity:report.InitialDeposit);
-        foreach(var p in report.EquityPoints){peak=Math.Max(peak,p.Equity);decimal money=peak-p.Equity;result.Add((p.Time,p.Equity,money,peak>0?money/peak*100:0));}return result;
+        foreach(var p in AccountHistory.AdjustedEquity(report)){peak=Math.Max(peak,p.Equity);decimal money=peak-p.Equity;result.Add((p.Time,p.Equity,money,peak>0?money/peak*100:0));}return result;
     }
 }

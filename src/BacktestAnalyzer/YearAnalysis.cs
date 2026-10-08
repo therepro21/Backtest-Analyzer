@@ -18,7 +18,7 @@ public static class YearAnalysis
         var ordered=source.Balances.OrderBy(x=>x.Time).ToList();
         decimal opening=ordered.Where(x=>x.Time<start).Select(x=>x.Balance).DefaultIfEmpty(source.InitialDeposit).Last();
         var inventory=Inventory(source.Deals.Where(d=>d.Time<start));
-        var report=new Report{FullEquityPoints=source.FullEquityPoints.Count>0?source.FullEquityPoints:source.EquityPoints,ActualTestEnd=source.ActualTestEnd,PenultimateClose=source.PenultimateClose,DrawdownEnabled=source.DrawdownEnabled,DrawdownCount=source.DrawdownCount,ScopeSymbol=source.ScopeSymbol,SymbolAttributed=source.SymbolAttributed,SymbolMarkets=source.SymbolMarkets,SymbolMappings=source.SymbolMappings,StrategyMode=source.StrategyMode,MarketSourceTimeIsBroker=source.MarketSourceTimeIsBroker,MarketIsCustom=source.MarketIsCustom,MarketTerminalPath=source.MarketTerminalPath,MarketMt5Symbol=source.MarketMt5Symbol,Source=source.Source,FullHistory=source.FullHistory.Count>0?source.FullHistory:source.Deals,Hash=source.Hash,Platform=source.Platform,Metadata=source.Metadata,
+        var report=new Report{AccountBookings=source.AccountBookings,IsAccountHistory=source.IsAccountHistory,FullEquityPoints=source.FullEquityPoints.Count>0?source.FullEquityPoints:source.EquityPoints,ActualTestEnd=source.ActualTestEnd,PenultimateClose=source.PenultimateClose,DrawdownEnabled=source.DrawdownEnabled,DrawdownCount=source.DrawdownCount,ScopeSymbol=source.ScopeSymbol,SymbolAttributed=source.SymbolAttributed,SymbolMarkets=source.SymbolMarkets,SymbolMappings=source.SymbolMappings,StrategyMode=source.StrategyMode,MarketSourceTimeIsBroker=source.MarketSourceTimeIsBroker,MarketIsCustom=source.MarketIsCustom,MarketTerminalPath=source.MarketTerminalPath,MarketMt5Symbol=source.MarketMt5Symbol,Source=source.Source,FullHistory=source.FullHistory.Count>0?source.FullHistory:source.Deals,Hash=source.Hash,Platform=source.Platform,Metadata=source.Metadata,
             MarketEnabled=source.MarketEnabled,MarketSymbol=source.MarketSymbol,MarketBrokerSymbol=source.MarketBrokerSymbol,MarketLoadedSymbol=source.MarketLoadedSymbol,MarketInterval=source.MarketInterval,MarketSource=source.MarketSource,MarketStatus=source.MarketStatus,MarketBars=source.MarketBars,BrokerUtcOffsetMinutes=source.BrokerUtcOffsetMinutes,BrokerWinterOffsetMinutes=source.BrokerWinterOffsetMinutes,BrokerTimeRule=source.BrokerTimeRule,BrokerTimeConfirmed=source.BrokerTimeConfirmed,
             InputParameters=source.InputParameters,AvailableColumns=source.AvailableColumns,Warnings=source.Warnings,
             SaturdayTrading=source.SaturdayTrading,SundayTrading=source.SundayTrading,ReportScope=source.ReportScope,InitialDeposit=opening,AnalysisYear=year,AxisStart=start,AxisEnd=end,OpeningBuyLots=inventory.Buy,OpeningSellLots=inventory.Sell,
@@ -52,7 +52,7 @@ public static class YearAnalysis
     public static (decimal Money,decimal Percent,DateTime Time,decimal Peak) MaxDrawdown(Report report,bool percentage)
     {
         decimal peak=report.InitialDeposit;var best=(Money:0m,Percent:0m,Time:report.Balances.FirstOrDefault().Time,Peak:peak);
-        foreach(var point in report.Balances.OrderBy(x=>x.Time))
+        foreach(var point in AccountHistory.Performance(report))
         {peak=Math.Max(peak,point.Balance);var money=peak-point.Balance;var percent=peak>0?money/peak*100:0;
             if((percentage?percent:money)>(percentage?best.Percent:best.Money))best=(money,percent,point.Time,peak);}
         return best;

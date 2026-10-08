@@ -6,7 +6,7 @@ public static class AdvancedPainter
  public static void Draw(ICanvas c,ChartKind kind,Report r,Palette p,double x,double y,double width,double height)
  {
   var panel=AdvancedAnalysis.Panel(r,kind);c.Rect(x,y,width,height,p.Surface);c.Text(panel.Title,x+12,y+10,11,p.Ink,true);
-  string line="";int row=0;foreach(var word in panel.Note.Split(' ')){var next=line+" "+word;if(c.Measure(next,5.5)>width-24&&line.Length>0){c.Text(line.Trim(),x+12,y+30+row++*7,5.5,p.Muted);line=word;}else line=next;}c.Text(line.Trim(),x+12,y+30+row*7,5.5,p.Muted);
+  c.Note(panel.Note,x+12,y+30,p.Muted);
   var vals=panel.Values;if(vals.Count==0)return;double left=x+58,right=x+width-15,top=y+58,bottom=y+height-44,w=right-left,h=bottom-top;
   if(kind==ChartKind.Correlation){int n=(int)Math.Sqrt(vals.Count);if(n<2){c.Text(Localization.English?"At least two symbols required":"Mindestens zwei Symbole erforderlich",left,top,9,p.Muted);return;}double cw=Math.Min(w/n,h/n);for(int i=0;i<n;i++){c.RightText(vals[i*n].Label.Split(" / ")[0],left-6,top+i*cw+cw/2-3,6,p.Muted);c.Text(vals[i].Label.Split(" / ")[1],left+i*cw,top-9,6,p.Muted);for(int j=0;j<n;j++){var v=vals[i*n+j];double xx=left+j*cw,yy=top+i*cw;var col=ThemeSets.Blend(v.A>=0?p.Positive:p.Negative,p.Surface,Math.Abs(v.A));c.Rect(xx,yy,cw-1,cw-1,col);c.Text(v.Detail.StartsWith("r=")?v.A.ToString("0.00"):"n/a",xx+2,yy+cw/2-3,6,Math.Abs(v.A)>.65?p.Surface:p.Ink);c.Hover(xx,yy,cw-1,cw-1,v.Label+"\n"+v.Detail);}}return;}
   if(kind==ChartKind.Costs){
@@ -22,7 +22,8 @@ public static class AdvancedPainter
    if(kind!=ChartKind.Excursion&&(i%stride==0||i==vals.Count-1)){string label=v.Label.Length>22?v.Label[..21]+"…":v.Label;double size=5.5;if(c.Measure(label,size)>bw*stride-2&&kind!=ChartKind.Rolling){c.Text((i+1).ToString(),xx+bw/2,bottom+5,size,p.Muted);c.Hover(xx,bottom+3,bw,15,v.Label);}else c.CenterText(label,xx+bw/2,bottom+5,size,p.Muted);}
   }
 
-  var last=SeriesAnalysis.Selected(r).LastOrDefault(c=>SeriesAnalysis.TestEnd(r,c));if(last!=null&&(kind==ChartKind.Rolling||kind==ChartKind.Concentration)){string label=(Localization.English?"Forced close: ":"Zwangsschluss: ")+last.Start.ToString("dd.MM.yy HH:mm")+" → "+last.End!.Value.ToString("dd.MM.yy HH:mm");c.Text(label,left,y+height-15,5.5,p.Negative);c.Hover(left,y+height-17,w,13,label+"\nNetto: "+DisplayFormat.Money(last.Net,r));if(kind==ChartKind.Rolling)c.Circle(right-bw/2,Y(vals[^1].A),2,p.Negative);}
+  if(kind==ChartKind.Rolling){var samples=AdvancedAnalysis.Samples(r);int window=Math.Min(100,samples.Count);var endpoints=samples.Where((sample,i)=>i+1>=window&&(i%Math.Max(1,samples.Count/80)==0||i==samples.Count-1)).Select(sample=>sample.End).ToArray();double Position(DateTime time){if(endpoints.Length==0||time<endpoints[0]||time>endpoints[^1])return left-1;int i=Array.BinarySearch(endpoints,time);if(i<0)i=~i;double index=i;if(i>0&&i<endpoints.Length)index=i-1+(time-endpoints[i-1]).TotalSeconds/Math.Max(1,(endpoints[i]-endpoints[i-1]).TotalSeconds);return left+(index+.5)*bw;}EventMarkers.Timeline(c,r,p,left,right,top,bottom,y+height-27,Position);var last=SeriesAnalysis.Selected(r).LastOrDefault(q=>SeriesAnalysis.TestEnd(r,q));if(last!=null&&vals.Count>1){c.Line(right-bw*1.5,Y(vals[^2].A),right-bw*.5,Y(vals[^1].A),p.Negative,1.5);c.Circle(right-bw*.5,Y(vals[^1].A),2.5,p.Negative);}}
+
   if(kind==ChartKind.MonteCarlo){var sim=AdvancedAnalysis.Simulate(r,600,12345);c.Text("DD P95: "+DisplayFormat.Money((decimal)AdvancedAnalysis.Quantile(sim.Select(s=>s.DD),.95),r)+" · "+(Localization.English?"Loss probability: ":"Verlustwahrscheinlichkeit: ")+(sim.Count>0?100d*sim.Count(s=>s.Net<0)/sim.Count:0).ToString("N1")+" %",left,y+height-13,6,p.Muted,true);}
  }
 }

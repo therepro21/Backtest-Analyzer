@@ -4,7 +4,7 @@ public static class EventDetails
 {
     public static List<DrawdownEvent> Drawdowns(Report r,int? limit=null)
     {
-        var points=r.EquityPoints.OrderBy(p=>p.Time).ToList();if(points.Count==0)return new();
+        var points=AccountHistory.AdjustedEquity(r);if(points.Count==0)return new();
         decimal peak=r.EquityReferencePeak??points[0].Equity;DateTime peakTime=points[0].Time;DrawdownEvent? active=null;var events=new List<DrawdownEvent>();
         foreach(var p in points){if(p.Equity>=peak){if(active!=null){events.Add(active with{Recovery=p.Time});active=null;}peak=p.Equity;peakTime=p.Time;}else{decimal money=peak-p.Equity,pct=peak>0?money/peak*100:0;if(active==null||money>active.Money)active=new(peakTime,p.Time,null,peak,p.Equity,money,pct);}}
         if(active!=null)events.Add(active);return events.OrderByDescending(e=>e.Percent).ThenByDescending(e=>e.Money).Take(limit??(r.DrawdownEnabled?Math.Clamp(r.DrawdownCount,1,20):0)).ToList();
@@ -12,12 +12,13 @@ public static class EventDetails
     public static string Quote(Report r,DateTime time)
     {
         var bar=r.MarketBars.LastOrDefault(b=>MarketData.BrokerTime(r,b.Utc).AddHours(1)<=time&&time<MarketData.BrokerTime(r,b.Utc).AddHours(2));
-        return bar==null?(Localization.English?"market price unavailable":"Marktkurs nicht verfügbar"):(Localization.English?"last completed H1 close":"letzter abgeschlossener H1-Schlusskurs")+" "+bar.Close.ToString("N2",Localization.Culture)+" "+MarketData.PriceCurrency(r)+" · "+DisplayFormat.Time(MarketData.BrokerTime(r,bar.Utc).AddHours(1));
+        return bar==null?(Localization.English?"market price unavailable":"Marktkurs nicht verfügbar"):(Localization.English?"H1 close":"H1-Schluss")+" "+bar.Close.ToString("N2",Localization.Culture)+" "+MarketData.PriceCurrency(r)+" · "+DisplayFormat.Time(MarketData.BrokerTime(r,bar.Utc).AddHours(1));
     }
     public static string Describe(Report r,DrawdownEvent e)
     {
         var end=e.Recovery??r.EquityPoints.Max(p=>p.Time);var duration=Stats.HoldingSeconds(new Trade{Open=e.Start,Close=end},r.ExcludeWeekends,r.SaturdayTrading,r.SundayTrading,r.NightPauseMinutes,r.NightPauseStartMinute);
-        return (Localization.English?"Trading duration":"Handelsdauer")+": "+Stats.Duration(duration)+" · "+$"{e.Percent:N2} % / {DisplayFormat.Money(e.Money,r)} · "+(Localization.English?"Peak":"Höchststand")+": "+DisplayFormat.Money(e.Peak,r)+" → "+DisplayFormat.Money(e.Equity,r)+"\n"+(Localization.English?"Start":"Beginn")+": "+DisplayFormat.Time(e.Start)+" · "+Quote(r,e.Start)+"\n"+(Localization.English?"Trough":"Tiefpunkt")+": "+DisplayFormat.Time(e.Trough)+" · "+Quote(r,e.Trough)+"\n"+(e.Recovery.HasValue?(Localization.English?"Recovered":"Erholt")+": "+DisplayFormat.Time(e.Recovery.Value)+" · "+Quote(r,e.Recovery.Value):(Localization.English?"Not recovered by":"Nicht erholt bis")+" "+DisplayFormat.Time(end));
+        return (Localization.English?"Trading duration":"Handelsdauer")+": "+Stats.Duration(duration)+"\n"+(Localization.English?"Peak → trough":"Höchststand → Tiefpunkt")+": "+DisplayFormat.Money(e.Peak,r)+" → "+DisplayFormat.Money(e.Equity,r)+"\n"+(Localization.English?"Start":"Beginn")+": "+DisplayFormat.Time(e.Start)+"\n"+Quote(r,e.Start)+"\n"+(Localization.English?"Trough":"Tiefpunkt")+": "+DisplayFormat.Time(e.Trough)+"\n"+Quote(r,e.Trough)+"\n"+(e.Recovery.HasValue?(Localization.English?"Recovered":"Erholt")+": "+DisplayFormat.Time(e.Recovery.Value)+"\n"+Quote(r,e.Recovery.Value):(Localization.English?"Not recovered by":"Nicht erholt bis")+" "+DisplayFormat.Time(end));
+
     }
     public static (string Duration,string Period,string Prices) Longest(Report r,IEnumerable<Trade>? subset=null,bool forceSingle=false)
     {

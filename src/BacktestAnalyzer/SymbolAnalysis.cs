@@ -5,7 +5,8 @@ public static class SymbolAnalysis
  public static List<string> Symbols(Report r)=>r.Deals.Select(d=>d.Symbol).Concat(r.Trades.Select(t=>t.Symbol)).Where(s=>s.Length>0).Distinct().Order().ToList();
  public static Report ForSymbol(Report source,string symbol)
  {
-  var r=source.Range(source.AxisStart??source.Deals.Select(d=>d.Time).DefaultIfEmpty(DateTime.Today).Min(),source.AxisEnd??source.Deals.Select(d=>d.Time).DefaultIfEmpty(DateTime.Today).Max().AddTicks(1));r.AnalysisYear=source.AnalysisYear;r.AxisStart=source.AxisStart;r.AxisEnd=source.AxisEnd;r.ScopeSymbol=symbol;
+  var times=source.Deals.Select(d=>d.Time).Concat(source.Balances.Select(b=>b.Time)).Concat(source.AccountBookings.Select(b=>b.Time)).ToArray();
+  var r=source.Range(source.AxisStart??times.DefaultIfEmpty(DateTime.Today).Min(),source.AxisEnd??times.DefaultIfEmpty(DateTime.Today).Max().AddTicks(1));r.AnalysisYear=source.AnalysisYear;r.AxisStart=source.AxisStart;r.AxisEnd=source.AxisEnd;r.ScopeSymbol=symbol;
   if(symbol.Length==0){if(Symbols(source).Count>1){r.MarketEnabled=false;r.MarketBars=new();}return r;}
   r.Deals=source.Deals.Where(d=>d.Symbol==symbol).ToList();r.Trades=source.Trades.Where(t=>t.Symbol==symbol).ToList();r.FullHistory=(source.FullHistory.Count>0?source.FullHistory:source.Deals).Where(d=>d.Symbol==symbol).ToList();r.Series=null;
   r.Metadata=new(source.Metadata);r.Metadata["Symbol"]=symbol;

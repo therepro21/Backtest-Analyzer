@@ -4,9 +4,15 @@ namespace BacktestAnalyzer;
 public static class Localization
 {
  public static bool English {get;set;}
- public static CultureInfo Culture=>CultureInfo.GetCultureInfo(English?"en-US":"de-AT");
+ static readonly CultureInfo German=GermanCulture();
+ static CultureInfo GermanCulture(){var culture=(CultureInfo)CultureInfo.GetCultureInfo("de-AT").Clone();culture.NumberFormat=(NumberFormatInfo)CultureInfo.GetCultureInfo("de-DE").NumberFormat.Clone();return CultureInfo.ReadOnly(culture);}
+ public static CultureInfo Culture=>English?CultureInfo.GetCultureInfo("en-US"):German;
  static readonly Dictionary<string,string> Terms=new(StringComparer.OrdinalIgnoreCase)
  {
+  ["Kontoprofil"]="Account profile",["KONTOPROFIL"]="ACCOUNT PROFILE",["Plattform"]="Platform",["Letzter Kontostand"]="Last account balance",["Einzahlungen"]="Deposits",["Auszahlungen"]="Withdrawals",["Handelsergebnis"]="Trading result",
+  ["Kommission / Gebühren"]="Commission / fees",["Backtests und Kontohistorien. Klar ausgewertet."]="Backtests and account history. Clearly analyzed.",
+  ["Ersteinzahlung"]="Initial deposit",["Handelsergebnis einschließlich Kontogebühren"]="Trading result including account charges",["Konto"]="Account",["Bruttogewinn"]="Gross profit",["Bruttoverlust"]="Gross loss",["Durchschnittliche Positionshaltedauer"]="Average position holding time",["Gewinntrades"]="Winning trades",["Verlusttrades"]="Losing trades",["H1-Schluss"]="H1 close",["Höchststand"]="Peak",["Tiefpunkt"]="Trough",["Erholt"]="Recovered",["Beginn"]="Start",["Marktkurs nicht verfügbar"]="Market price unavailable",["Balance und Equity-Drawdown"]="Balance and equity drawdown",["Balance und Equity"]="Balance and equity",
+  ["Hilfe und Erklärung"]="Help and explanation",["Kontohistorie"]="Account history",["Einzahlung"]="Deposit",["Auszahlung"]="Withdrawal",["Kredit / Bonus"]="Credit / bonus",["Kontobuchungen"]="Account bookings",["Bereinigte Ergebnislinie"]="Cash-flow-adjusted result",["Letzter regulärer Abschluss"]="Last regular close",["Beginn letzter Zyklus"]="Final cycle entry",["Beginn letzte Order"]="Final order entry",["Zwangsschluss am Testende"]="Forced close at test end",["Equity-/Balance-Differenz"]="Equity/balance shortfall",
   ["Marktkurs im Detail"]="Market detail",["Testprofil"]="Test profile",["Brokerzeiten direkt"]="direct broker timestamps",
   ["Einstellungen"]="Settings",["Analyseoptionen"]="Analysis options",["Export & Zusatzfunktionen"]="Export & additional features",["Marktkurs"]="Market price",["Übernehmen"]="Apply",["Marktkerzen"]="Market candles",["Kurse nicht verfügbar"]="Prices unavailable",["dichte Ansicht: OHLC pro Pixelgruppe"]="dense view: OHLC per pixel group",["Zeitregel unbestätigt"]="time rule unconfirmed",["rechte Achse"]="right axis",["Kerzen im Zeitfenster"]="candles in time window",["Zeitfenster"]="Time window",
   ["Handelsdauer · geschlossene Wochenendtage und pauschale Nachtpause abgezogen"]="Trading duration · closed weekend days and assumed overnight break excluded",

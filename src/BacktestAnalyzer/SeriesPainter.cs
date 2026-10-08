@@ -21,7 +21,7 @@ public static class SeriesPainter
     if(cw>17)c.CenterText(totals[d,h]==0?"—":report.SeriesAsPercent?v.ToString("0")+"%":v.ToString("0"),left+(h+.5)*cw,top+row*ch+ch/2-3,6.5,f>.5?"#15283B":p.Ink);
    }}for(int h=0;h<24;h+=2)c.CenterText(DisplayFormat.Hour(h),left+(h+.5)*cw,top+ph+7,Math.Min(5,cw/4),p.Muted);
    c.Text(report.SeriesAsPercent?"Anteil langer Zyklen an allen Starts im jeweiligen Feld (%)":"Anzahl langer Zyklen je Wochentag und Startstunde",x+12,y+height-29,7,p.Muted);
-   c.Text("Blau: 0 lange · Orange: zunehmend viele / hoher Anteil · —: keine Starts",x+12,y+height-16,6.5,p.Muted);
+   c.Text("0 lange",x+12,y+height-16,6,p.Positive);c.Text("Hoher Anteil",x+90,y+height-16,6,p.Negative);c.Text("—: keine Starts",x+185,y+height-16,6,p.Muted);
   }else{
    var axis=ChartAxis.Nice(0,maximum);string[] colors=p.Dark?new[]{"#67B7FF","#FFAC3D","#66D7A9","#CDA0FF","#FF7DA7","#FFE16A","#71DCE8"}:new[]{"#145DA0","#D46B00","#16804A","#8245B5","#BF2362","#9A7B00","#00828F"};
    c.VerticalText(report.SeriesAsPercent?"Anteil (%)":"Anzahl Zyklen",x+6,top+ph/2,7,p.Muted);foreach(var tick in axis.Ticks){double yy=top+ph-ph*tick/axis.High;c.Line(left,yy,left+pw,yy,p.Line,.4);c.RightText(ChartAxis.Number(tick)+(report.SeriesAsPercent?" %":""),left-5,yy-4,7,p.Muted);}

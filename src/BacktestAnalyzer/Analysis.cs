@@ -21,8 +21,12 @@ public sealed class Trade
     public bool ModelDependent => Estimated || MatchMethod!="eindeutige History";
     public string Result => Net.ToString("N2", CultureInfo.GetCultureInfo("de-DE"));
 }
+public sealed record AccountBooking(DateTime Time,string Kind,decimal Amount,decimal? Balance,string Comment);
 public sealed class Report
 {
+    public List<AccountBooking> AccountBookings {get;set;}=new();
+    public bool IsAccountHistory {get;set;}
+    public string ReportType=>IsAccountHistory?"Kontohistorie":"Backtest";
     public bool DrawdownEnabled {get;set;}=true; public int DrawdownCount {get;set;}=10;
     public string ScopeSymbol {get;set;}=""; public bool SymbolAttributed {get;set;}
     public Dictionary<string,MarketSeries> SymbolMarkets {get;set;}=new();
@@ -38,7 +42,7 @@ public sealed class Report
     public decimal? EquityReferencePeak {get;set;}
     public Report Range(DateTime start,DateTime end)
     {
-        if(end<=start)throw new ArgumentException("Ende muss nach Anfang liegen.");var r=(Report)MemberwiseClone();r.AxisStart=start;r.AxisEnd=end;r.AnalysisYear=null;r.Balances=Balances.Where(b=>b.Time>=start&&b.Time<=end).ToList();var balance=Balances.LastOrDefault(b=>b.Time<start);if(balance.Time!=default)r.Balances.Insert(0,(start,balance.Balance));r.EquityPoints=EquityPoints.Where(b=>b.Time>=start&&b.Time<=end).ToList();var equity=EquityPoints.LastOrDefault(b=>b.Time<start);if(equity.Time!=default)r.EquityPoints.Insert(0,(start,equity.Balance,equity.Equity,equity.DepositLoad));r.EquityReferencePeak=EquityPoints.Where(b=>b.Time<=start).Select(b=>b.Equity).DefaultIfEmpty(InitialDeposit).Max();return r;
+        if(end<=start)throw new ArgumentException("Ende muss nach Anfang liegen.");var r=(Report)MemberwiseClone();r.AxisStart=start;r.AxisEnd=end;r.AnalysisYear=null;r.Balances=Balances.Where(b=>b.Time>=start&&b.Time<=end).ToList();var balance=Balances.LastOrDefault(b=>b.Time<start);if(balance.Time!=default)r.Balances.Insert(0,(start,balance.Balance));r.EquityPoints=EquityPoints.Where(b=>b.Time>=start&&b.Time<=end).ToList();var equity=EquityPoints.LastOrDefault(b=>b.Time<start);if(equity.Time!=default)r.EquityPoints.Insert(0,(start,equity.Balance,equity.Equity,equity.DepositLoad));r.EquityReferencePeak=AccountHistory.AdjustedEquity(this).Where(b=>b.Time<=start).Select(b=>b.Equity).DefaultIfEmpty(InitialDeposit).Max()+AccountHistory.Flows(this,AxisStart??DateTime.MinValue,start,true);return r;
     }
     public bool SaturdayTrading {get;set;}=false;public bool SundayTrading {get;set;}=false;public string ReportScope {get;set;}="both";
     public List<(DateTime Time,decimal Balance,decimal Equity,decimal DepositLoad)> FullEquityPoints {get;set;}=new();
@@ -78,7 +82,7 @@ public static class Parser
     }
     static readonly Dictionary<string,string> FieldKeys = new[]{"Time","Zeit","Type","Typ","Deal","Trade","Transaktion","Order","Auftrag","Balance","Kontostand","Profit","Gewinn","Direction","Richtung","Entry","Position","Position ID","PositionId","Symbol","Volume","Volumen","Price","Preis","Commission","Kommission","Swap","Fee","Gebühr","Gebuehr","Comment","Kommentar","Size","Lots","Größe"}.ToDictionary(x=>x,Key);
     static string FieldKey(string s)=>FieldKeys.TryGetValue(s,out var k)?k:Key(s);
-    static bool Date(string s,out DateTime dt)=>DateTime.TryParseExact(s.Trim(),new[]{"yyyy.MM.dd HH:mm:ss","yyyy.MM.dd HH:mm","yyyy-MM-dd HH:mm:ss","yyyy-MM-ddTHH:mm:ss"},CultureInfo.InvariantCulture,DateTimeStyles.None,out dt);
+    static bool Date(string s,out DateTime dt)=>DateTime.TryParseExact(s.Trim(),new[]{"yyyy.MM.dd HH:mm:ss","yyyy.MM.dd HH:mm:ss.FFFFFFF","yyyy.MM.dd HH:mm","yyyy-MM-dd HH:mm:ss","yyyy-MM-dd HH:mm:ss.FFFFFFF","yyyy-MM-ddTHH:mm:ss","yyyy-MM-ddTHH:mm:ss.FFFFFFF"},CultureInfo.InvariantCulture,DateTimeStyles.None,out dt);
     public static Report Load(string path,bool useProfitMatching=true)
     {
         if(Path.GetExtension(path).Equals(".tst",StringComparison.OrdinalIgnoreCase))return TesterCache.Load(path);
@@ -86,7 +90,7 @@ public static class Parser
         using var hashStream=File.OpenRead(path);
         var report=new Report{Source=Path.GetFullPath(path),Hash=Convert.ToHexString(SHA256.HashData(hashStream)).ToLowerInvariant()};
         bool readingInputs=false;
-        Dictionary<string,int>? header=null; bool mt5=false;
+        Dictionary<string,int>? header=null; bool mt5=false,statement=false;
         foreach(var row in ReportRows.Read(path))
         {
             bool dated=row.Length>0&&Date(row[0],out _);
@@ -98,18 +102,20 @@ public static class Parser
                 else if(readingInputs) {if(row.Length>1&&row[0].Length==0&&row[1].Contains('='))report.InputParameters.Add(row[1]);else readingInputs=false;}
             }
             var k=dated?Array.Empty<string>():row.Select(Key).ToArray();
+            if(k.Contains("ticket")&&k.Contains("opentime")&&k.Contains("closetime")){header=new();for(int i=0;i<k.Length;i++)header.TryAdd(k[i],i);report.Platform="MT4";statement=true;report.AvailableColumns.UnionWith(k);continue;}
             if(k.Any(x=>x is "direction" or "richtung" or "entry")&&k.Any(x=>x is "deal" or "trade" or "transaktion")) {header=new();for(int i=0;i<k.Length;i++)header.TryAdd(k[i],i);mt5=true;report.Platform="MT5";report.AvailableColumns.UnionWith(k);continue;}
             if(k.Any(x=>x is "order" or "auftrag")&&k.Any(x=>x is "time" or "zeit")&&k.Any(x=>x is "type" or "typ")&&!k.Any(x=>x is "status" or "state")&&!mt5){header=new();for(int i=0;i<k.Length;i++)header.TryAdd(k[i],i);report.Platform="MT4";continue;}
             if(header==null)continue;
             string Get(params string[] aliases){foreach(var alias in aliases)if(header.TryGetValue(FieldKey(alias),out var i)&&i<row.Length)return row[i];return "";}
-            if(!Date(Get("Time","Zeit"),out var time))continue;
+            if(!Date(statement?Get("Open Time"):Get("Time","Zeit"),out var time))continue;
             try
             {
                 var side=Get("Type","Typ").ToLowerInvariant();var id=Get("Deal","Trade","Transaktion","Order","Auftrag");
+                if(statement){id=Get("Ticket");decimal net=Number(Get("Profit","Gewinn")),commission=Number(Get("Commission","Kommission")),swap=Number(Get("Swap")),tax=Number(Get("Taxes"));if(side is "balance" or "credit"){report.AccountBookings.Add(new(time,side,net,null,Get("Comment","Kommentar")));continue;}if(side is "buy" or "sell"){string symbol=Get("Item","Symbol");decimal volume=Number(Get("Size","Lots"));var opening=new Deal(id+"-in",id,id,time,symbol,side,"in",volume,Number(Get("Price")),0,0,0,0,null,"");report.Deals.Add(opening);if(Date(Get("Close Time"),out var close)){decimal exitPrice=header.TryGetValue("closetime",out int ci)&&ci+1<row.Length?Number(row[ci+1]):opening.Price;report.Deals.Add(new(id+"-out",id,id,close,symbol,side=="buy"?"sell":"buy","out",volume,exitPrice,net,commission,swap,tax,null,""));}continue;}}
                 var bal=Get("Balance","Kontostand");if(bal.Length>0)report.Balances.Add((time,Number(bal)));
                 if(mt5)
                 {
-                    if(side is not ("buy" or "sell")) { if(side=="balance"&&report.InitialDeposit==0&&report.Deals.Count==0)report.InitialDeposit=Number(Get("Profit","Gewinn"));continue; }
+                    if(side is not ("buy" or "sell")) { if(side.Length>0){decimal amount=Number(Get("Profit","Gewinn"))+Number(Get("Commission","Kommission"))+Number(Get("Swap"))+Number(Get("Fee","Gebühr"));report.AccountBookings.Add(new(time,AccountHistory.Kind(side,Get("Comment","Kommentar")),amount,bal.Length>0?Number(bal):null,Get("Comment","Kommentar")));}continue; }
                     var entry=Get("Direction","Richtung","Entry").ToLowerInvariant().Replace(" ", "");
                     if(entry is not ("in" or "out" or "in/out" or "inout" or "outby" or "out/by"))throw new InvalidDataException("Unbekannte Deal-Richtung: "+entry);
                     var d=new Deal(id,Get("Order","Auftrag"),Get("Position","Position ID","PositionId"),time,Get("Symbol"),side,entry,Number(Get("Volume","Volumen")),Number(Get("Price","Preis")),Number(Get("Profit","Gewinn")),Number(Get("Commission","Kommission")),Number(Get("Swap")),Number(Get("Fee","Gebühr","Gebuehr")),bal.Length>0?Number(bal):null,Get("Comment","Kommentar"));
@@ -117,7 +123,7 @@ public static class Parser
                 }
                 else
                 {
-                    if(side is "modify" or "delete" or "balance" or "credit")continue;
+                    if(side is "balance" or "credit"){report.AccountBookings.Add(new(time,AccountHistory.Kind(side,Get("Comment","Kommentar")),Number(Get("Profit","Gewinn")),bal.Length>0?Number(bal):null,Get("Comment","Kommentar")));continue;}if(side is "modify" or "delete")continue;
                     if(side is "buy" or "sell")report.Deals.Add(new Deal(id,id,id,time,Get("Symbol").Length>0?Get("Symbol"):report.Find("Symbol"),side,"in",Number(Get("Size","Volume","Lots","Volumen","Größe")),Number(Get("Price","Preis")),0,0,0,0,bal.Length>0?Number(bal):null,Get("Comment","Kommentar")));
                     else if(side is "close" or "s/l" or "t/p" or "closeby" or "close at stop")
                     {
@@ -129,11 +135,13 @@ public static class Parser
             }
             catch(Exception ex)when(ex is FormatException or OverflowException or InvalidDataException){report.Warnings.Add("Zeile nicht auswertbar ("+time.ToString("s")+"): "+ex.Message);}
         }
-        if(report.Deals.Count==0)throw new InvalidDataException("Keine unterstützte Deal-/Trade-Tabelle gefunden. Benötigt wird ein vollständiger MT4-HTML- oder MT5-HTML/XLSX-Backtestbericht.");
+        if(report.Deals.Count==0&&report.AccountBookings.Count==0)throw new InvalidDataException("Keine unterstützte Deal-/Trade-Tabelle gefunden. Benötigt wird ein vollständiger MT4-HTML- oder MT5-HTML/XLSX-Backtestbericht.");
         var deposit=report.Find("Ersteinlage","Ersteinzahlung","Initial Deposit","Anfangseinzahlung");
         if(deposit.Length>0){var m=Regex.Match(deposit,@"[-+]?\d[\d\s.,]*");if(m.Success)report.InitialDeposit=Number(m.Value);}
         var inputKey=report.Metadata.Keys.FirstOrDefault(k=>new[]{"eingaben","inputs","parameters"}.Contains(Key(k)));
         if(inputKey is not null)report.Metadata[inputKey]=string.Join(Environment.NewLine,report.InputParameters);
+        report.IsAccountHistory=report.Find("Expertenprogramm","Expert","Expert Advisor").Length==0&&report.Find("Qualität der Historie","History Quality","Modeling quality").Length==0;
+        AccountHistory.Complete(report);
         report.ImportMilliseconds=timer.Elapsed.TotalMilliseconds; timer.Restart();
         Reconstruct(report,useProfitMatching);
         report.ReconstructionMilliseconds=timer.Elapsed.TotalMilliseconds;
